@@ -94,6 +94,29 @@ async def ws(sock: WebSocket):
         pass
 
 
+@app.websocket("/camsim")
+async def camsim(sock: WebSocket):
+    """Fake mode: the page streams JPEG frames of the fish's rendered point of view (binary messages)."""
+    await sock.accept()
+    station.log("Simulated fish camera: page opened the stream socket.")
+    if not station.args.fake:
+        await sock.send_text(json.dumps({"ok": False, "error": "camsim is only available in fake mode"}))
+        await sock.close()
+        return
+    n = 0
+    try:
+        while True:
+            data = await sock.receive_bytes()
+            if station.push_sim_frame(data):
+                n += 1
+                if n == 1:
+                    station.log("Simulated fish camera: receiving frames from the page.")
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    if n:
+        station.log("Simulated fish camera: page stream ended, back to the dot camera.")
+
+
 def parse_args(argv=None):
     p = argparse.ArgumentParser(prog="python -m gcs", description="Fish ground control station")
     p.add_argument("--fake", action="store_true", help="no hardware: simulate the fish, its IMU and its IR camera")

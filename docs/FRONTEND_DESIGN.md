@@ -48,8 +48,8 @@ The frontend mirrors the guidance state machine one-to-one. Every phase has a na
 | 3 | IMU glide      | ESP32 from microSD init + IMU  | Launch pressed / launch detected by accelerometer        | Abort, Fins neutral, Force hand-over       |
 | 4 | Hand-over      | both (blend window, ~1 s)      | progress ≥ threshold (default 80 %, progress = dead-reckoned distance ÷ path length) AND beacon seen ≥ N frames AND confidence ≥ c | Abort, Return to IMU |
 | 5 | Vision homing  | laptop CV (YOLO nano + IR)     | hand-over complete                                       | Abort, Return to IMU, Fins neutral         |
-| 6 | Arrived        | nobody, fins neutral           | CV error inside deadband for M frames / range reached    | Save log, New mission                      |
-| 7 | Aborted / Safe | nobody, fins neutral           | Abort pressed, link timeout, or guidance fault           | Save log, New mission, Connect             |
+| 6 | Arrived        | nobody, fins neutral           | CV error inside deadband for M frames / range reached    | Save log, Stop (back to Ready)             |
+| 7 | Aborted / Safe | nobody, fins neutral           | link timeout or guidance fault (automatic only, see section 14) | Save log, Stop (back to Ready), Connect |
 
 Abort is reachable from every phase after Ready, is a single action (no confirmation), and is
 visually the largest control on the screen.
@@ -104,8 +104,8 @@ Each item has an ID so review comments can point at it.
   Cancels itself after 5 s. Disarm is one press.
 - F2.5 Launch: enabled only when Armed. Starts a visible countdown (3, 5 or 10 s from Settings) in
   the cue strip; Cancel launch or Abort stops it. Optional "auto-detect launch from accelerometer" toggle.
-- F2.6 Pre-flight checklist auto-filled: link ok, init loaded, calibrated, fins responded to self-test,
-  battery ok, camera sees ≥ 1 frame.
+- F2.6 Pre-flight checklist auto-filled, in two groups (revised in section 12): required to arm (link, mission applied) and
+  recommended (calibrated, fins responded to self-test, battery ok).
 
 ### F3 Guidance
 - F3.1 Phase stepper listing all phases; current one marked with `aria-current="step"`.
@@ -113,6 +113,7 @@ Each item has an ID so review comments can point at it.
 - F3.3 Hand-over checklist, live: progress ≥ threshold, beacon seen ≥ N consecutive frames,
   confidence ≥ c, link ok. Each row shows ✔/✘ plus the current value.
 - F3.4 Force hand-over / Return to IMU (advanced, behind a disclosure).
+- F3.6 Stop mission button (section 12): from any phase after Ready back to Ready, fins neutral, shortcut `S`.
 - F3.5 IMU block: roll, pitch, yaw; estimated position (x, y, z) and distance to target;
   dead-reckoning drift warning when the estimate's age or accumulated error exceeds a limit.
 
@@ -215,6 +216,7 @@ shows the sentence next to the control that sent it.
 | Key | Action | Notes |
 |---|---|---|
 | `X` | Abort | works from any focus except text inputs |
+| `S` | Stop mission, back to Ready | single press; keeps link, calibration and parameters |
 | `A` | Arm / confirm arm | |
 | `L` | Launch | only when Armed |
 | `N` | Fins to neutral | |
@@ -258,3 +260,163 @@ Save log to JSON/CSV was not selected and is left for after the hackathon; the p
 Plain HTML/CSS/JS with Three.js (no build step), served by a Python ground station
 (FastAPI + WebSocket, or the existing Flask app extended). This matches the existing
 `light_tracker` code and keeps the hackathon setup to one `python gcs.py` command.
+
+## 12. Change request, 26 Sep 2026: stop, edit, re-apply without gates
+
+Status: **agreed and implemented, 26 Sep 2026**. Decisions: Stop in flight is a single press; Arm requires only the link and an applied mission; Apply mission is refused while Armed.
+
+### Problem
+
+Today the only ways out of a running or finished mission are Abort (lands in *Aborted*) and
+New mission (only from *Arrived* / *Aborted*), and Arm is gated on the whole pre-flight list
+(calibration, fin self-test, battery). On the bench that means: to change the target you must
+abort, press New mission, re-calibrate, re-run the self-test, then arm again. Calibration and
+self-test should be optional checks the operator can run before a mission, not a gate.
+
+### Behaviour after the change
+
+**Stop mission** (new, F3.6). One control, enabled in every phase except *Disconnected* and *Ready*:
+
+| From phase | What Stop does |
+|---|---|
+| Armed | disarm, back to Ready |
+| IMU glide / Hand-over / Vision homing | fins to neutral, guidance off, dead reckoning frozen, back to Ready (log: "Mission stopped by operator") |
+| Arrived / Aborted | back to Ready (replaces today's "New mission") |
+
+Stop keeps the link, the calibration, the self-test result, the mission parameters and the
+last flight's history (replay scrubber stays available until the next launch). It sits in the
+Guidance panel next to the phase stepper and has the shortcut `S`. Abort stays the emergency
+control: single press, red, lands in *Aborted*, logged as critical. Stop is the routine one.
+
+**Edit and re-apply** (F2.2 revised). In *Ready* every mission field (speed, target x y z), the
+hand-over threshold and the tuning sliders are editable and *Apply mission* re-sends the mission,
+moves the target, hand-over ring and planned path in the 3D view, and clears the old trail.
+While *Armed* or flying, the mission fields and Apply are disabled with the hint
+"Stop the mission to change parameters" (Armed: "Disarm to change parameters"). Threshold and
+tuning sliders stay live during flight, as today.
+
+**Pre-flight without gates** (F2.6 revised). The list splits into two groups:
+
+| Group | Items | Effect on Arm |
+|---|---|---|
+| Required | fin board link, mission applied | Arm disabled until both are true |
+| Recommended | IMU calibrated, fin self-test passed, battery above 7.0 V | Arm stays enabled; skipped items are listed under the Arm button and in the confirm step ("Confirm arm (5 s) · 2 checks skipped"); arming logs a warning naming them |
+
+Calibrate IMU and Fin self-test are enabled only in *Ready* (before arming), can be re-run any
+number of times, and are disabled from *Armed* onward. Their results survive Stop and are only
+cleared by Disconnect.
+
+**Live view.** Stop leaves the 3D view showing the finished trail with the replay scrubber;
+Apply mission resets the scene to the launch point with the new target; Launch clears the trail.
+
+### Data contract additions
+
+- `POST /cmd {"cmd":"stop"}` → `{ok:true}` from any phase except Disconnected. `new_mission` becomes an alias.
+- Telemetry `preflight` gains `required: {link, mission}`, `advisory: {calibrated, selftest, batt}`,
+  `can_arm: bool`, `skipped: ["IMU calibration", ...]`.
+
+### Decisions (confirmed 26 Sep 2026)
+
+1. **Stop while flying** is a single press. It has the same physical effect as Abort (fins neutral) but lands in Ready.
+2. **Arm requires** the fin board link and an applied mission. Calibration, self-test and battery are advisory and are listed when skipped.
+3. **Apply mission while Armed** is refused with "Disarm to change the mission."; the fields are disabled in the page.
+
+## 13. Additions, 26 Sep 2026: end-of-mission summary and speed in cm/s
+
+- **F4.6 End-of-mission summary.** When the phase becomes *Arrived* or *Aborted*, a non-modal
+  panel slides over the bottom of the 3D view: title (Arrived / Aborted · safe), the reason from
+  the phase log, flight time, final estimated distance, path covered, when the hand-over happened,
+  best beacon confidence and the largest drift estimate. Its primary button is **Back to Ready**
+  (same as Stop mission). *Keep viewing* or `Esc` closes it and leaves the replay scrubber; the
+  Stop mission button in the Guidance panel still works. Focus moves to Back to Ready when the
+  panel opens and returns to Stop mission when it closes; a polite live-region message announces it.
+  The panel is not modal, so nothing on the page is blocked.
+- **F2.2 Units.** The launch speed field is entered and shown in **cm/s** (80 cm/s instead of
+  0.8 m/s) and the target x, y, z fields in **cm** (200, 800, 100 instead of 2.0, 8.0, 1.0). The page
+  divides by 100 before sending; the station, the telemetry, the 3D view scale, the log files and
+  the microSD init file stay in **m/s** and **metres**.
+
+## 14. Change, 26 Sep 2026: operator Abort returns to Ready
+
+- **Abort while Armed** is a disarm. **Abort while flying** puts the fins to neutral and returns
+  straight to *Ready*, logged as critical, keeping the link, calibration, parameters and the flight
+  history. It is the same transition as Stop mission; the difference is only the log level and the
+  red single-press control. The *Aborted* phase is now reached only by automatic faults (link lost
+  for more than 1.5 s, path overrun without a beacon lock), where Back to Ready is still needed.
+- **Summary panel** now appears at every mission end: *Arrived*, *Aborted* (fault) with Back to
+  Ready, and *Stopped* / operator *Aborted* where the fish is already in Ready, so the panel only
+  offers Close. Pointer, wheel and key events inside the panel no longer reach the 3D view's orbit
+  handlers, which had been swallowing clicks on its buttons.
+
+## 15. Swarm vision, 26 Sep 2026: follow a quad swarm's centroid
+
+Status: **implemented 26 Sep 2026** (defaults: cluster radius 200 px, swarm match 60 px, 4 simulated quads within 0.4 m of the target). Decisions: IR LEDs on the quads are the primary detector, with a
+YOLO nano path that must also run on a Raspberry Pi; the fish homes on the swarm centroid; fake mode
+simulates a swarm; the 3D view shows the quads as models for the demo.
+
+### Detection pipeline (station, `gcs/vision.py`)
+
+1. **Sources.** Every frame yields a list of sources, each with pixel position, size, mass
+   (summed intensity) and confidence. Two producers, merged: the IR blob detector (all blobs above
+   the cutoff, up to `max_sources`, as in the light tracker) and, when weights are loaded, YOLO
+   boxes filtered to the configured classes (box centre, box size, model score).
+2. **Clustering.** Sources closer than `cluster_radius` px (directly or through a chain) form a
+   swarm: mass-weighted centroid, member count, spread (RMS radius) and convex hull.
+3. **Tracking.** Swarms keep a persistent ID across frames (`swarm_match` px); one that vanishes is
+   remembered for ~10 frames so a flicker does not renumber. The followed swarm is the operator's
+   choice, or the biggest by mass when nothing is chosen. While the followed swarm is briefly
+   missing the fins hold (state *hold*) instead of jumping to another one.
+4. **Target.** In *swarm* mode the "beacon" handed to guidance is the followed swarm's centroid;
+   its confidence blends member count and contrast; its radius is the spread. *Beacon* mode
+   (single brightest source) stays the default; the mode is a live tunable.
+
+### YOLO on the laptop and on a Raspberry Pi
+
+`--yolo weights.pt` uses the ultralytics package (laptop). `--yolo weights.onnx` uses onnxruntime,
+which installs on a Pi in one line and runs a nano model at 320 px at a few frames per second on
+the CPU; the same file is the input for the AI HAT / Hailo compiler later. Both backends return the
+same box list, so the swarm logic does not care which one ran. Class filter: `yolo_classes`
+(names or ids, comma separated). No drone dataset exists yet, so the README carries the recipe:
+label frames, train `yolo11n`, export to ONNX at 320 px.
+
+### Fake mode
+
+The simulated fish's target becomes a swarm of `n` quads (default 4) hovering around the mission
+target with a slow drift; the fake IR camera renders one LED per quad. Their true positions are
+sent in telemetry (`sim.quads`) only in fake mode.
+
+### Page changes
+
+- **F5.6 Mode switch** Beacon / Swarm (segmented, `aria-pressed`), live.
+- **F5.7 Swarm list**: one row per visible swarm (ID, quads, spread px), the followed one marked;
+  Prev / Next buttons, keys `[` and `]`, click a swarm on the IR frame to follow it, *Auto* returns
+  to "biggest". Text equivalent names the followed swarm and its quad count.
+- **F5.1** annotated frame shows every source as a small circle, other swarms dim with their ID,
+  the followed swarm's hull, spokes and crosshair, and YOLO boxes when present.
+- **F3.3** hand-over row reads "Swarm seen N frames in a row" in swarm mode.
+- **F4.7 Quads in the 3D view**: simple quadcopter models (cross frame, four rotors, one LED)
+  at the true positions in fake mode, or a ring of *n* around the target marker in real flights
+  where *n* is the detected quad count. Rotors spin unless motion is reduced. Legend entry added.
+- Detection tuning gains cluster radius and swarm match sliders.
+
+## 16. Synthetic training data, 26 Sep 2026
+
+`tools/synth/index.html` (served by `tools/synth/server.py`) is a separate, single-purpose page
+that renders procedurally varied quadcopters with Three.js and writes YOLO labels from the
+projected geometry. Controls: count, image size, IR-style share, max drones per image, share of
+empty frames, distractor share, validation share, seed; Preview, Generate and save, Stop; a
+progress bar with a polite live-region status. `tools/train_quads.py` fine-tunes YOLO nano on the
+result and exports ONNX for the Raspberry Pi. The GCS page itself is unchanged.
+
+## 17. Simulated fish camera, 26 Sep 2026
+
+In fake mode the page renders the fish's own point of view (62° × 49°, 640 × 480, from 0.3 m ahead
+of the true simulated pose that the station now sends in telemetry) and streams it as JPEG frames
+over `ws://…/camsim` at about 10 per second. The ground station treats those frames as the camera:
+the annotated feed, the IR blob detector and YOLO all run on them, and it falls back to the dot
+picture within a second if the page stops streaming. A select in the Vision panel (fake mode only)
+chooses **IR-style** (black world, dark bodies, white LEDs, sensor noise and bloom, matching the
+training data), **visible light** (sky and ground), or **off**. Operator overlays (grid, planned
+path, hand-over ring, trails, estimate marker, halo) live on a separate render layer so they never
+appear in the fish's view, and the fish model is hidden for that pass. The Vision panel's source
+line says whether frames come from the page or from the station. Real mode is unaffected.

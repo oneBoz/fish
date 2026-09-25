@@ -239,6 +239,15 @@ class ImuEstimator:
         with self.lock:
             self.launched = False
 
+    def reset_flight(self):
+        """Back to the launch point for the next mission; keeps attitude, biases and calibration."""
+        with self.lock:
+            self.launched = False
+            self.launch_time = None
+            self.pos = np.zeros(3)
+            self.vel = np.zeros(3)
+            self.drift = 0.0
+
     def snapshot(self, target=None):
         with self.lock:
             pos = self.pos.copy()

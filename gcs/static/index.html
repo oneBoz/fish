@@ -1,4 +1,4 @@
-<title>Fish Flight Deck</title>
+<title>Maelstrom Flight Deck</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
@@ -30,6 +30,7 @@
 :root[data-contrast="high"]{ --line:var(--line-strong); --bw:2px; --muted:var(--ink); }
 
 *{box-sizing:border-box}
+[hidden]{display:none !important}
 html{height:100%}
 body{margin:0;min-height:100%;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:1rem;line-height:1.45;
   padding-inline:16px;padding-block:0 24px}
@@ -123,6 +124,8 @@ details>*:not(summary){margin-top:.5rem}
 .checklist .mark{font-family:var(--font-mono);font-weight:600;text-align:center}
 .checklist li.ok .mark{color:var(--good-text)} .checklist li.no .mark{color:var(--crit-text)}
 .checklist .val{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.checklist li.adv.no .mark{color:var(--muted)}
+.pf-group{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:.25rem}
 
 /* ---- phase stepper ---- */
 .phases{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.15rem}
@@ -145,6 +148,14 @@ details>*:not(summary){margin-top:.5rem}
 .view-wrap canvas{display:block;width:100%;height:100%}
 .view-wrap:focus-visible{outline-offset:-3px}
 .view-badge{position:absolute;left:.6rem;top:.6rem;background:var(--surface);border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.2rem .5rem;font-size:.8rem}
+.summary{position:absolute;inset:auto 0 0 0;margin:0;max-width:none;width:auto;border:0;border-top:3px solid var(--good);border-radius:0;background:var(--surface);color:var(--ink);padding:.9rem 1rem;box-shadow:0 -4px 16px rgba(0,0,0,.25)}
+.summary.crit{border-top-color:var(--crit)}
+.summary.warn{border-top-color:var(--warn-text)}
+.summary[open]{display:flex;flex-direction:column;gap:.6rem}
+.summary .kv{grid-template-columns:auto 1fr auto 1fr;font-size:.9rem}
+@media (max-width:600px){ .summary .kv{grid-template-columns:auto 1fr} }
+.summary .btn-row{justify-content:flex-end}
+.summary .btn.primary{min-height:48px;padding-inline:1.4rem}
 .legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;font-size:.82rem;color:var(--muted);list-style:none;margin:0;padding:0}
 .legend li{display:inline-flex;align-items:center;gap:.4rem}
 .sw{width:1rem;height:.5rem;border-radius:2px;display:inline-block}
@@ -181,6 +192,10 @@ details>*:not(summary){margin-top:.5rem}
 .lock{display:flex;align-items:center;gap:.5rem;font-weight:700}
 .lock .ic{font-family:var(--font-mono)}
 .meter{display:grid;grid-template-columns:1fr 4rem;gap:.5rem;align-items:center;font-size:.9rem}
+.swarms{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem}
+.swarms .btn{width:100%;justify-content:space-between;font-weight:400;min-height:40px}
+.swarms .btn[aria-pressed="true"]{font-weight:700;border-color:var(--cv);background:var(--cv-wash)}
+.ir-wrap.pickable{cursor:crosshair}
 .meter .track{height:.7rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);overflow:hidden}
 .meter .fill{height:100%;background:var(--cv);width:0}
 .meter output{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
@@ -256,13 +271,14 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
 
     <fieldset>
       <legend>2 · Mission target and speed</legend>
-      <div class="field"><label for="m-speed">Launch speed (m/s)</label><input type="number" id="m-speed" value="0.8" min="0.1" max="20" step="0.1" aria-describedby="m-speed-msg"><span id="m-speed-msg" class="hint">Starting speed for dead reckoning and the expected flight time.</span></div>
-      <div class="field"><span id="m-xyz-label">Target, metres from the launch point: x right, y up, z ahead of the nose at launch</span>
+      <div class="field"><label for="m-speed">Launch speed (m/s)</label><input type="number" id="m-speed" value="80" min="1" max="2000" step="1" aria-describedby="m-speed-msg"><span id="m-speed-msg" class="hint">Starting speed for dead reckoning and the expected flight time.</span></div>
+      <div class="field"><span id="m-xyz-label">Target, centimetres from the launch point: x right, y up, z ahead of the nose at launch</span>
         <div class="xyz" role="group" aria-labelledby="m-xyz-label">
-          <input type="number" id="m-x" value="2.0" step="0.1" aria-label="Target x, metres"><input type="number" id="m-y" value="8.0" step="0.1" aria-label="Target y, metres up"><input type="number" id="m-z" value="1.0" step="0.1" aria-label="Target z, metres">
+          <input type="number" id="m-x" value="200" step="1" aria-label="Target x, centimetres"><input type="number" id="m-y" value="800" step="1" aria-label="Target y, centimetres up"><input type="number" id="m-z" value="100" step="1" aria-label="Target z, centimetres">
         </div>
       </div>
       <div class="btn-row"><button class="btn primary" id="btn-apply-mission">Apply mission</button><button class="btn" id="btn-sample-init">Fill sample values</button></div>
+      <p id="apply-hint" class="hint" hidden></p>
       <p id="init-msg" class="hint">No mission set yet.</p>
       <dl class="kv" id="init-kv" hidden>
         <dt>Distance</dt><dd id="init-dist">—</dd>
@@ -274,20 +290,25 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
     </fieldset>
 
     <fieldset>
-      <legend>3 · Calibrate and arm</legend>
+      <legend>3 · Optional checks, then arm</legend>
       <div class="btn-row"><button class="btn" id="btn-cal" disabled>Calibrate IMU</button><button class="btn" id="btn-selftest" disabled>Fin self-test</button></div>
-      <p id="cal-msg" class="hint">Hold the fish still for 3 s during calibration.</p>
-      <ul class="checklist" id="preflight" aria-label="Pre-flight checklist">
+      <p id="cal-msg" class="hint">Optional, any number of times before arming. Hold the fish still for 3 s during calibration.</p>
+      <p class="pf-group" id="pf-req-h">Required to arm</p>
+      <ul class="checklist" aria-labelledby="pf-req-h">
         <li id="pf-link"><span class="mark" aria-hidden="true">✘</span><span>Fin board and camera linked</span><span class="val"></span></li>
-        <li id="pf-init"><span class="mark" aria-hidden="true">✘</span><span>Mission target and speed set</span><span class="val"></span></li>
-        <li id="pf-cal"><span class="mark" aria-hidden="true">✘</span><span>IMU calibrated</span><span class="val"></span></li>
-        <li id="pf-fins"><span class="mark" aria-hidden="true">✘</span><span>Fins responded to self-test</span><span class="val"></span></li>
-        <li id="pf-batt"><span class="mark" aria-hidden="true">✘</span><span>Battery above 7.0 V</span><span class="val"></span></li>
+        <li id="pf-init"><span class="mark" aria-hidden="true">✘</span><span>Mission applied</span><span class="val"></span></li>
+      </ul>
+      <p class="pf-group" id="pf-adv-h">Recommended, not required</p>
+      <ul class="checklist" aria-labelledby="pf-adv-h">
+        <li id="pf-cal" class="adv"><span class="mark" aria-hidden="true">–</span><span>IMU calibrated</span><span class="val"></span></li>
+        <li id="pf-fins" class="adv"><span class="mark" aria-hidden="true">–</span><span>Fins responded to self-test</span><span class="val"></span></li>
+        <li id="pf-batt" class="adv"><span class="mark" aria-hidden="true">–</span><span>Battery above 7.0 V</span><span class="val"></span></li>
       </ul>
       <div class="btn-row">
         <button class="btn warnbtn" id="btn-arm" disabled>Arm</button>
         <button class="btn primary" id="btn-launch" disabled>Launch</button>
       </div>
+      <p id="arm-skipped" class="hint" hidden></p>
       <label class="check"><input type="checkbox" id="opt-autolaunch" checked> Detect launch from accelerometer</label>
       <p id="arm-msg" class="hint"></p>
     </fieldset>
@@ -297,6 +318,8 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
   <section class="panel" id="sec-guidance" aria-labelledby="h-guidance">
     <div class="panel-head"><h2 id="h-guidance">Guidance</h2><span class="sub">F3</span></div>
     <ol class="phases" id="phases" aria-label="Mission phases"></ol>
+    <div class="btn-row"><button class="btn" id="btn-stop" disabled>Stop mission</button></div>
+    <p class="hint" id="stop-hint">Ends the mission and returns to Ready with the fins neutral. The link, calibration and parameters are kept, so you can edit and apply again.</p>
     <div>
       <div class="progress" aria-hidden="true"><div class="bar" id="prog-bar"></div><div class="thr" id="prog-thr"></div></div>
       <p class="hint" id="prog-text">Progress 0 % of the path · hand-over at 80 %</p>
@@ -345,6 +368,19 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
     <div class="view-wrap" id="view-wrap" tabindex="0" role="group" aria-label="3D flight view. Arrow keys orbit, plus and minus zoom, Home resets the camera. The text below describes the same information.">
       <canvas id="view3d" aria-hidden="true"></canvas>
       <span class="view-badge" id="view-badge" aria-hidden="true">Follow</span>
+      <dialog class="summary" id="dlg-summary" aria-labelledby="sum-title" aria-describedby="sum-desc">
+        <div class="dlg-head"><h3 id="sum-title">Mission ended</h3><button class="btn small" id="sum-close" type="button" aria-label="Close summary, keep viewing the flight">Keep viewing</button></div>
+        <p id="sum-desc" class="hint"></p>
+        <dl class="kv" id="sum-kv">
+          <dt>Flight time</dt><dd id="sum-time">—</dd>
+          <dt>Final distance (estimate)</dt><dd id="sum-dist">—</dd>
+          <dt>Path covered</dt><dd id="sum-prog">—</dd>
+          <dt>Hand-over to vision</dt><dd id="sum-ho">—</dd>
+          <dt>Best beacon confidence</dt><dd id="sum-conf">—</dd>
+          <dt>Largest drift estimate</dt><dd id="sum-drift">—</dd>
+        </dl>
+        <div class="btn-row"><button class="btn primary" id="sum-ready" type="button">Back to Ready</button></div>
+      </dialog>
     </div>
     <ul class="legend" aria-label="Legend">
       <li><span class="sw" style="background:var(--accent)"></span>Fish (IMU estimate)</li>
@@ -353,6 +389,7 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
       <li><span class="sw dash"></span>Planned path</li>
       <li><span class="sw ring"></span>Hand-over ring</li>
       <li><span class="sw" style="background:var(--cv);border-radius:50%;width:.6rem;height:.6rem"></span>Beacon (target)</li>
+      <li><span class="sw" style="background:var(--muted);width:.8rem;height:.3rem"></span>Quad (swarm mode)</li>
     </ul>
     <p class="readout" id="readout">Not connected. Connect the fish to start receiving position data.</p>
     <div class="replay" id="replay">
@@ -384,8 +421,19 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
   <!-- ================= VISION ================= -->
   <section class="panel" id="sec-vision" aria-labelledby="h-vision">
     <div class="panel-head"><h2 id="h-vision">Vision</h2><span class="sub">F5 · YOLO nano + IR blob</span></div>
-    <div class="ir-wrap"><img id="ir" alt="" aria-hidden="true"><div class="nostream" id="ir-nostream">No stream</div></div>
+    <div class="seg" role="group" aria-label="Detection mode">
+      <button class="btn small" id="vm-beacon" aria-pressed="true">Beacon</button>
+      <button class="btn small" id="vm-swarm" aria-pressed="false">Swarm</button>
+      <span class="hint" id="vm-hint">Beacon: brightest source. Swarm: follow a cluster's centroid.</span>
+    </div>
+    <div class="ir-wrap" id="ir-wrap"><img id="ir" alt="" aria-hidden="true"><div class="nostream" id="ir-nostream">No stream</div></div>
     <p class="lock" id="lock"><span class="ic" aria-hidden="true">○</span><span id="lock-t">No stream</span></p>
+    <div id="swarm-box" hidden>
+      <h3>Swarms · following <span id="swarm-follow" class="mono">—</span></h3>
+      <div class="btn-row"><button class="btn small" id="sw-prev">◀ Prev swarm</button><button class="btn small" id="sw-next">Next swarm ▶</button><button class="btn small" id="sw-auto">Auto (biggest)</button></div>
+      <ul class="swarms" id="swarm-list" aria-label="Visible swarms"></ul>
+      <p class="hint">Click a swarm on the frame or in the list to follow it. Keys [ and ] cycle.</p>
+    </div>
     <div class="meter"><label for="conf-out" style="grid-column:1/-1;font-size:.9rem">Detection confidence</label><div class="track" aria-hidden="true"><div class="fill" id="conf-fill"></div></div><output id="conf-out">0.00</output></div>
     <dl class="kv">
       <dt>Pixel error (ex, ey)</dt><dd id="cv-err">—</dd>
@@ -395,6 +443,11 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
     </dl>
     <p class="hint" id="cv-alt">No camera stream.</p>
     <p class="hint" id="cv-src"></p>
+    <div class="field" id="camsim-box" hidden>
+      <label for="camsim">Simulated fish camera (fake mode)</label>
+      <select id="camsim"><option value="ir" selected>Stream the 3D view from the nose, IR-style</option><option value="visible">Stream the 3D view from the nose, visible light</option><option value="off">Off: dot picture from the ground station</option></select>
+      <span class="hint" id="camsim-hint">The page renders what the fish would see and sends it to the ground station, which runs the detector on it.</span>
+    </div>
     <details>
       <summary>Detection tuning</summary>
       <p class="hint">Changes apply when you release a slider and are sent to the ground station.</p>
@@ -402,6 +455,9 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
       <div class="field"><label for="tn-con">Min contrast <output for="tn-con" id="tn-con-o">40</output></label><input type="range" id="tn-con" min="5" max="150" step="5" value="40"></div>
       <div class="field"><label for="tn-area">Min blob area px <output for="tn-area" id="tn-area-o">4</output></label><input type="range" id="tn-area" min="1" max="60" step="1" value="4"></div>
       <div class="field"><label for="tn-blur">Blur kernel <output for="tn-blur" id="tn-blur-o">9</output></label><input type="range" id="tn-blur" min="1" max="41" step="2" value="9"></div>
+      <div class="field"><label for="tn-clu">Cluster radius px, swarm mode (0 = one swarm) <output for="tn-clu" id="tn-clu-o">200</output></label><input type="range" id="tn-clu" min="0" max="400" step="5" value="200"></div>
+      <div class="field"><label for="tn-sm">Swarm match px per frame, keeps IDs <output for="tn-sm" id="tn-sm-o">60</output></label><input type="range" id="tn-sm" min="10" max="200" step="5" value="60"></div>
+      <div class="field"><label for="tn-quads">Simulated quads, fake mode only <output for="tn-quads" id="tn-quads-o">4</output></label><input type="range" id="tn-quads" min="1" max="12" step="1" value="4"></div>
     </details>
   </section>
 
@@ -446,7 +502,6 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
       <button class="btn small" id="btn-copylog">Copy log</button>
       <span class="err" id="cmd-err" role="status"></span>
       <button class="btn small" id="btn-clearlog">Clear</button>
-      <button class="btn small" id="btn-newmission" disabled>New mission</button>
       <a class="btn small" href="/log.json" download="fish-flight.json">Download JSON</a>
       <a class="btn small" href="/log.csv" download="fish-flight.csv">Download CSV</a>
     </div>
@@ -465,7 +520,7 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
     <label class="check"><input type="checkbox" id="st-contrast"> High contrast borders and labels</label>
     <div class="field"><label for="st-size">Text size</label><select id="st-size"><option value="100">100 %</option><option value="125">125 %</option><option value="150">150 %</option></select></div>
     <div class="field"><label for="st-motion">Motion</label><select id="st-motion"><option value="system">Follow system</option><option value="reduce">Reduce motion</option></select></div>
-    <label class="check"><input type="checkbox" id="st-keys" checked> Single-key shortcuts (X, A, L, N, P, 1–3)</label>
+    <label class="check"><input type="checkbox" id="st-keys" checked> Single-key shortcuts (X, S, A, L, N, P, 1–3)</label>
     <div class="field"><label for="st-count">Launch countdown</label><select id="st-count"><option value="3">3 s</option><option value="5">5 s</option><option value="10">10 s</option></select></div>
     <div class="field"><label for="st-units">Units</label><select id="st-units"><option value="m">metres</option><option value="ft">feet</option></select></div>
     <div class="field"><label for="st-verb">Screen-reader announcements</label><select id="st-verb"><option value="all">Every log event</option><option value="phase">Phase changes and alerts only</option></select></div>
@@ -484,6 +539,8 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
         <tr><td><kbd>A</kbd></td><td>Arm, then confirm arm</td></tr>
         <tr><td><kbd>L</kbd></td><td>Start the launch countdown (only when armed)</td></tr>
         <tr><td><kbd>N</kbd></td><td>Fins to neutral</td></tr>
+        <tr><td><kbd>S</kbd></td><td>Stop mission, back to Ready (single press)</td></tr>
+        <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next swarm (swarm mode)</td></tr>
         <tr><td><kbd>P</kbd></td><td>Pause or resume the 3D view</td></tr>
         <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Camera preset Follow / Side / Top</td></tr>
         <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Orbit the 3D view when it has focus; <kbd>+</kbd> <kbd>−</kbd> zoom, <kbd>Home</kbd> resets</td></tr>
@@ -584,6 +641,8 @@ const S = {
   yaw:0, pitch:0, yawCmd:0, pitchCmd:0, rtt:null, sent:0, acked:0, batt:null, linkOk:false, imuAge:null, imuRate:0, cam:{connected:false,fps:0,cv_ms:0}, drift:0,
   hoOk:[false,false,false,false], preflight:{}, override:{on:false,yaw:0,pitch:0}, armPending:null, launchPending:null, calibrating:null, selftestRunning:false, mission:{set:false},
   cvW:640, cvH:480, cvSource:'ir', lastControls:0,
+  summary:{handoverT:null, maxConf:0, maxDrift:0, reason:''},
+  vmode:'beacon', swarms:[], swarmId:null, swarmN:0, nSources:0, simQuads:[], lastSwarmKey:'', simFish:null, camSource:null,
 };
 
 /* ================= log + live regions ================= */
@@ -609,8 +668,10 @@ function onPhase(key, prev){
   S.phase = key;
   if (settings.verb==='phase') announce('Phase ' + p.label);
   if (key !== 'ready' || prev !== 'disconnected') showCue(p.icon, 'Phase: ' + p.label, p.cls || '', key==='aborted' ? 8000 : 4000);
-  if (key === 'imu_glide' && !FLYING.has(prev)) { S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); }
-  if (key === 'arrived' || key === 'aborted') enableReplay();
+  if (key === 'imu_glide' && !FLYING.has(prev)) { S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); S.summary = {handoverT:null, maxConf:0, maxDrift:0, reason:''}; hideSummary(); }
+  if (key === 'handover') S.summary.handoverT = missionT();
+  if (key === 'arrived' || key === 'aborted' || (key === 'ready' && FLYING.has(prev))) setTimeout(showSummary, 150); else hideSummary();
+  if (key === 'arrived' || key === 'aborted' || (key === 'ready' && FLYING.has(prev))) enableReplay();
   if (!FLYING.has(key) && countdown) cancelCountdown('phase changed');
   updateControls();
 }
@@ -635,20 +696,25 @@ function updateControls(){
   $('btn-disconnect').disabled = !S.connected || fly;
   $('btn-cal').disabled = !(ph==='ready') || S.calibrating != null;
   $('btn-selftest').disabled = !(ph==='ready') || S.selftestRunning;
-  const preflightOk = Object.values(pf).length && Object.values(pf).every(Boolean);
-  $('btn-arm').disabled = !((ph==='ready' && preflightOk) || ph==='armed');
-  $('btn-arm').textContent = ph==='armed' ? 'Disarm' : (S.armPending != null ? 'Confirm arm (' + Math.ceil(S.armPending) + ' s)' : 'Arm');
+  const skipped = pf.skipped || [];
+  $('btn-arm').disabled = !((ph==='ready' && pf.can_arm) || ph==='armed');
+  $('btn-arm').textContent = ph==='armed' ? 'Disarm' : (S.armPending != null ? 'Confirm arm (' + Math.ceil(S.armPending) + ' s)' + (skipped.length ? ' · ' + skipped.length + ' check' + (skipped.length>1?'s':'') + ' skipped' : '') : 'Arm');
+  const sk = $('arm-skipped'); sk.hidden = !(ph==='ready' && pf.can_arm && skipped.length); if (!sk.hidden) sk.textContent = 'Arming will skip: ' + skipped.join(', ') + '.';
   $('btn-launch').disabled = ph!=='armed' || !!countdown || S.launchPending != null;
   $('btn-abort').disabled = !(ph==='armed' || fly);
   $('btn-neutral').disabled = !S.connected;
   $('ov-on').disabled = !fly;
   $('btn-force-ho').disabled = ph!=='imu_glide';
   $('btn-return-imu').disabled = !(ph==='cv_homing' || ph==='handover');
-  $('btn-newmission').disabled = !(ph==='arrived' || ph==='aborted');
-  $('btn-apply-mission').disabled = fly;
-  const pfSet = (id, ok, val) => { const li = $(id); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); li.querySelector('.mark').textContent = ok?'✔':'✘'; li.querySelector('.val').textContent = val||''; li.setAttribute('aria-label', (ok?'Done: ':'Not done: ') + li.children[1].textContent + (val?', '+val:'')); };
+  $('btn-stop').disabled = !(S.connected && ph!=='disconnected' && ph!=='ready');
+  $('btn-stop').textContent = (ph==='arrived' || ph==='aborted') ? 'Back to Ready' : (ph==='armed' ? 'Disarm' : 'Stop mission');
+  const lockMission = fly || ph==='armed';
+  $('btn-apply-mission').disabled = lockMission;
+  ['m-speed','m-x','m-y','m-z','init-file','btn-sample-init'].forEach(id => { $(id).disabled = lockMission; });
+  const ah = $('apply-hint'); ah.hidden = !lockMission; ah.textContent = fly ? 'Stop the mission to change parameters.' : 'Disarm to change parameters.';
+  const pfSet = (id, ok, val) => { const li = $(id); const adv = li.classList.contains('adv'); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); li.querySelector('.mark').textContent = ok?'✔':(adv?'–':'✘'); li.querySelector('.val').textContent = val||''; li.setAttribute('aria-label', (ok?'Done: ':(adv?'Skipped: ':'Not done: ')) + li.children[1].textContent + (val?', '+val:'')); };
   pfSet('pf-link', pf.link, S.connected && S.rtt != null ? 'ACK ' + fmt(S.rtt,0) + ' ms' : '');
-  pfSet('pf-init', pf.mission, S.mission.set ? fmt(S.mission.path_len,1) + ' m at ' + fmt(S.mission.speed,1) + ' m/s' : '');
+  pfSet('pf-init', pf.mission, S.mission.set ? fmt(S.mission.path_len,1) + ' m at ' + Math.round(S.mission.speed*100) + ' cm/s' : '');
   pfSet('pf-cal', pf.calibrated, S.calibrating != null ? 'hold still ' + fmt(S.calibrating,0) + ' s' : (pf.calibrated ? 'done' : ''));
   pfSet('pf-fins', pf.selftest, S.selftestRunning ? 'running' : (pf.selftest ? '4 / 4 moved' : ''));
   pfSet('pf-batt', pf.batt, S.batt != null ? fmt(S.batt,2) + ' V' : (S.connected ? 'no reading' : ''));
@@ -663,7 +729,7 @@ function updateControls(){
   const p = PHASES[cur];
   const pn = $('phase-now'); pn.className = 'phase-now' + (p.cls?' '+p.cls:'');
   $('phase-icon').textContent = p.icon; $('phase-label').textContent = p.label;
-  $('cal-msg').textContent = S.calibrating != null ? 'Calibrating, hold still: ' + Math.ceil(S.calibrating) + ' s left.' : (S.calibrated ? 'Calibrated.' : 'Hold the fish still for 3 s during calibration.');
+  $('cal-msg').textContent = S.calibrating != null ? 'Calibrating, hold still: ' + Math.ceil(S.calibrating) + ' s left.' : (S.calibrated ? 'Calibrated. You can re-run it any time before arming.' : (ph==='ready' ? 'Optional, any number of times before arming. Hold the fish still for 3 s during calibration.' : 'Available again once the mission is stopped.'));
   $('cal-msg').className = S.calibrated && S.calibrating == null ? 'okmsg' : 'hint';
 }
 
@@ -686,16 +752,16 @@ $('btn-connect').addEventListener('click', connect);
 $('btn-disconnect').addEventListener('click', () => cmd({cmd:'disconnect'}, $('ip-fin-msg')).then(() => { $('ip-fin-msg').textContent='ESP32-S3, UDP 4210'; $('ip-fin-msg').className='hint'; $('ip-cam-msg').textContent='ESP32-CAM, MJPEG :81/stream'; $('ip-cam-msg').className='hint'; }));
 
 async function applyMission(source){
-  const sp = parseFloat($('m-speed').value), x = parseFloat($('m-x').value), y = parseFloat($('m-y').value), z = parseFloat($('m-z').value);
+  const spCm = parseFloat($('m-speed').value), sp = spCm / 100, x = parseFloat($('m-x').value) / 100, y = parseFloat($('m-y').value) / 100, z = parseFloat($('m-z').value) / 100;   // page shows cm and cm/s, the station works in m and m/s
   const msg = $('init-msg');
-  if (!(sp > 0)) { msg.textContent = 'Launch speed must be a number above 0 m/s.'; msg.className = 'err'; $('m-speed').focus(); return false; }
-  if ([x,y,z].some(v => isNaN(v)) || Math.hypot(x,y,z) < 0.5) { msg.textContent = 'Target must be at least 0.5 m from the launch point.'; msg.className = 'err'; $('m-x').focus(); return false; }
+  if (!(sp > 0)) { msg.textContent = 'Launch speed must be a number above 0 cm/s.'; msg.className = 'err'; $('m-speed').focus(); return false; }
+  if ([x,y,z].some(v => isNaN(v)) || Math.hypot(x,y,z) < 0.5) { msg.textContent = 'Target must be at least 50 cm from the launch point.'; msg.className = 'err'; $('m-x').focus(); return false; }
   const r = await cmd({cmd:'mission', speed:sp, target:[x,y,z], source: source || 'typed in'}, msg);
-  if (r.ok) { msg.textContent = 'Mission applied: target ' + r.path_len.toFixed(2) + ' m away at ' + sp.toFixed(1) + ' m/s, expected ' + r.eta_s.toFixed(1) + ' s.'; msg.className = 'okmsg'; }
+  if (r.ok) { msg.textContent = 'Mission applied: target ' + r.path_len.toFixed(2) + ' m away at ' + Math.round(spCm) + ' cm/s, expected ' + r.eta_s.toFixed(1) + ' s.'; msg.className = 'okmsg'; S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); }
   return r.ok;
 }
 $('btn-apply-mission').addEventListener('click', () => applyMission(''));
-$('btn-sample-init').addEventListener('click', () => { $('m-speed').value = '0.8'; $('m-x').value = '2.0'; $('m-y').value = '8.0'; $('m-z').value = '1.0'; $('init-msg').textContent = 'Sample values filled in. Press Apply mission.'; $('init-msg').className = 'hint'; });
+$('btn-sample-init').addEventListener('click', () => { $('m-speed').value = '80'; $('m-x').value = '200'; $('m-y').value = '800'; $('m-z').value = '100'; $('init-msg').textContent = 'Sample values filled in. Press Apply mission.'; $('init-msg').className = 'hint'; });
 $('init-file').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0]; if (!f) return;
   const r = new FileReader(); const m = $('init-file-msg');
@@ -704,8 +770,8 @@ $('init-file').addEventListener('change', e => {
     try { const j = JSON.parse(text); speed = j.speed; target = j.target; } catch (_) {
       const lines = text.split(/\r?\n/).filter(Boolean); if (lines.length >= 2) { const hdr = lines[0].split(',').map(h => h.trim().toLowerCase()); const row = lines[1].split(',');
         const get = k => { const i = hdr.indexOf(k); return i >= 0 ? parseFloat(row[i]) : NaN; }; speed = get('speed'); target = [get('x'), get('y'), get('z')]; } }
-    if (!(speed > 0) || !target || target.some(v => isNaN(v))) { m.textContent = 'Could not find speed and target x, y, z in ' + f.name + '. Expect JSON {"speed", "target":[x,y,z]} or CSV columns speed,x,y,z.'; m.className='err'; return; }
-    $('m-speed').value = speed; $('m-x').value = target[0]; $('m-y').value = target[1]; $('m-z').value = target[2];
+    if (!(speed > 0) || !target || target.some(v => isNaN(v))) { m.textContent = 'Could not find speed and target x, y, z in ' + f.name + '. Expect JSON {"speed" (m/s), "target":[x,y,z] (metres)} or CSV columns speed,x,y,z in m/s and metres.'; m.className='err'; return; }
+    $('m-speed').value = Math.round(speed * 100); $('m-x').value = Math.round(target[0] * 100); $('m-y').value = Math.round(target[1] * 100); $('m-z').value = Math.round(target[2] * 100);
     m.textContent = 'Fields filled from ' + f.name + '. Check them and press Apply mission.'; m.className='okmsg'; $('init-msg').textContent = 'Pre-filled from ' + f.name + '; not applied yet.'; $('init-msg').className='hint';
     $('init-file').dataset.source = f.name;
   };
@@ -717,7 +783,7 @@ $('btn-selftest').addEventListener('click', () => cmd({cmd:'selftest'}, $('cal-m
 $('btn-arm').addEventListener('click', async () => {
   if (S.phase==='armed') { await cmd({cmd:'disarm'}, $('arm-msg')); $('arm-msg').textContent = 'Disarmed.'; return; }
   const r = await cmd({cmd:'arm'}, $('arm-msg'));
-  if (r.ok) $('arm-msg').textContent = r.armed ? 'Armed. Launch when ready, or press Abort.' : 'Press "Confirm arm" within 5 s to arm the fish.';
+  if (r.ok) $('arm-msg').textContent = (r.armed ? 'Armed. Launch when ready, or press Abort.' : 'Press "Confirm arm" within 5 s to arm the fish.') + (r.skipped && r.skipped.length ? ' Skipped: ' + r.skipped.join(', ') + '.' : '');
 });
 $('opt-autolaunch').addEventListener('change', e => cmd({cmd:'autolaunch', on:e.target.checked}));
 
@@ -744,7 +810,30 @@ $('btn-abort').addEventListener('click', abort);
 $('btn-neutral').addEventListener('click', () => cmd({cmd:'fins_neutral'}));
 $('btn-force-ho').addEventListener('click', () => cmd({cmd:'force_handover'}));
 $('btn-return-imu').addEventListener('click', () => cmd({cmd:'return_to_imu'}));
-$('btn-newmission').addEventListener('click', () => cmd({cmd:'new_mission'}).then(r => { if (r.ok) { S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); } }));
+function stopMission(){ if ($('btn-stop').disabled) return; if (countdown) cancelCountdown('stop'); cmd({cmd:'stop'}, $('arm-msg')).then(r => { if (r.ok) $('arm-msg').textContent = r.from==='armed' ? 'Disarmed.' : 'Mission stopped. Edit the parameters and apply again, or arm to fly the same mission.'; }); }
+$('btn-stop').addEventListener('click', stopMission);
+/* ---- end-of-mission summary over the 3D view ---- */
+function showSummary(){
+  const dlg = $('dlg-summary'); const tel = S.tel || {}; const arrived = S.phase === 'arrived';
+  const aborted = S.phase === 'aborted' || /ABORT/.test(S.summary.reason || '');
+  const alreadyReady = S.phase === 'ready';
+  dlg.classList.toggle('crit', aborted); dlg.classList.toggle('warn', !arrived && !aborted);
+  $('sum-title').textContent = arrived ? 'Arrived' : aborted ? 'Aborted · safe' : 'Stopped';
+  $('sum-ready').hidden = alreadyReady; $('sum-close').textContent = alreadyReady ? 'Close' : 'Keep viewing';
+  $('sum-desc').textContent = (S.summary.reason ? S.summary.reason.charAt(0).toUpperCase() + S.summary.reason.slice(1) + '. ' : '') + (alreadyReady ? 'Fins are neutral, the link is kept and the fish is back in Ready: edit the mission and fly again. The replay stays available.' : 'Fins are neutral and the link is kept. Back to Ready lets you edit the mission and fly again; the replay stays available.');
+  const tm = missionT(); $('sum-time').textContent = tm == null ? '—' : tm.toFixed(1) + ' s';
+  $('sum-dist').textContent = tel.est && tel.est.dist != null ? unit(tel.est.dist) : '—';
+  const last = S.hist.length ? S.hist[S.hist.length-1] : null; $('sum-prog').textContent = last ? Math.round(clamp(last.s,0,9)*100) + ' %' : '—';
+  $('sum-ho').textContent = S.summary.handoverT != null ? 'at ' + S.summary.handoverT.toFixed(1) + ' s' : 'never (stayed on IMU)';
+  $('sum-conf').textContent = S.summary.maxConf.toFixed(2);
+  $('sum-drift').textContent = unit(S.summary.maxDrift);
+  if (!dlg.open) { dlg.show(); $('sum-ready').focus(); }
+  announce((arrived ? 'Mission arrived. ' : 'Mission aborted. ') + 'Summary shown over the 3D view with a Back to Ready button.');
+}
+function hideSummary(){ const dlg = $('dlg-summary'); if (dlg.open) dlg.close(); }
+$('sum-ready').addEventListener('click', () => { hideSummary(); stopMission(); });
+$('sum-close').addEventListener('click', () => { hideSummary(); $('btn-stop').focus(); });
+$('dlg-summary').addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); hideSummary(); $('btn-stop').focus(); } });
 function setOverrideUI(on){ $('ov-yaw').disabled = !on; $('ov-pitch').disabled = !on; $('ov-banner').classList.toggle('on', on); }
 $('ov-on').addEventListener('change', e => cmd({cmd:'override', on:e.target.checked, yaw:+$('ov-yaw').value, pitch:+$('ov-pitch').value}).then(r => { if (!r.ok) e.target.checked = false; setOverrideUI(e.target.checked); }));
 let ovTimer = null;
@@ -755,7 +844,7 @@ function setThresholdUI(v){ v = clamp(Math.round(v),60,95); S.threshold = v/100;
 $('thr').addEventListener('input', e => { $('thr-n').value = e.target.value; });
 $('thr').addEventListener('change', e => { setThresholdUI(+e.target.value); cmd({cmd:'handover_threshold', value:+$('thr').value}, $('thr-hint')); });
 $('thr-n').addEventListener('change', e => { setThresholdUI(+e.target.value); cmd({cmd:'handover_threshold', value:+$('thr').value}, $('thr-hint')); });
-const TUNE = {'tn-rel':['rel_threshold',2],'tn-con':['min_contrast',0],'tn-area':['min_area',0],'tn-blur':['blur',0],'pid-kp':['kp',2],'pid-ki':['ki',2],'pid-db':['deadband_px',0],'pid-ms':['max_step',1]};
+const TUNE = {'tn-rel':['rel_threshold',2],'tn-con':['min_contrast',0],'tn-area':['min_area',0],'tn-blur':['blur',0],'tn-clu':['cluster_radius',0],'tn-sm':['swarm_match',0],'tn-quads':['sim_quads',0],'pid-kp':['kp',2],'pid-ki':['ki',2],'pid-db':['deadband_px',0],'pid-ms':['max_step',1]};
 Object.entries(TUNE).forEach(([id,[key,d]]) => { $(id).addEventListener('input', e => { $(id+'-o').textContent = (+e.target.value).toFixed(d); }); $(id).addEventListener('change', e => cmd({cmd:'tune', key, value:+e.target.value})); });
 $('btn-clearlog').addEventListener('click', () => { $('log').replaceChildren(); });
 $('btn-copylog').addEventListener('click', () => {
@@ -774,7 +863,7 @@ function connectWs(){
   ws.onerror = () => { try { ws.close(); } catch (_) {} };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
     if (m.type === 'hello') { S.fake = !!m.fake; $('brand-sub').textContent = m.fake ? 'Ground station · FAKE fish' : 'Ground station'; if (m.defaults) { if (!$('ip-fin').value) $('ip-fin').value = m.defaults.fin_ip; if (!$('ip-cam').value) $('ip-cam').value = m.defaults.cam_ip; } (m.events || []).forEach(e => log(e.msg, e.level, e.t_mission)); }
-    else if (m.type === 'event') log(m.msg, m.level, m.t_mission);
+    else if (m.type === 'event') { log(m.msg, m.level, m.t_mission); if (/^Phase: /.test(m.msg)) S.summary.reason = m.msg.replace(/^Phase: [^—]*(— )?/, ''); }
     else if (m.type === 'telemetry') applyTelemetry(m); };
 }
 function scheduleWs(){ if (wsRetry) return; wsRetry = setTimeout(() => { wsRetry = null; connectWs(); }, 1000); }
@@ -784,7 +873,8 @@ function applyTelemetry(m){
   const wasConnected = S.connected; S.connected = !!m.connected;
   S.s = m.progress || 0; S.rtt = m.link.fin_rtt_ms; S.sent = m.link.sent; S.acked = m.link.acked; S.linkOk = !!m.link.alive; S.imuAge = m.link.imu_age_ms; S.imuRate = m.link.imu_rate; S.cam = m.cam;
   S.att = m.imu; S.est.set(m.est.x, m.est.y, m.est.z); S.pos.copy(S.est); S.drift = m.est.drift || 0;
-  S.cv = {state: S.connected ? m.cv.state : 'none', ex: m.cv.ex_px, ey: m.cv.ey_px}; S.conf = m.cv.conf; S.cvFrames = m.cv.frames; S.cvW = m.cv.w; S.cvH = m.cv.h; S.cvSource = m.cv.source;
+  if (FLYING.has(m.phase)) { S.summary.maxConf = Math.max(S.summary.maxConf, m.cv.conf || 0); S.summary.maxDrift = Math.max(S.summary.maxDrift, S.drift); }
+  S.cv = {state: S.connected ? m.cv.state : 'none', ex: m.cv.ex_px, ey: m.cv.ey_px}; S.conf = m.cv.conf; S.vmode = m.cv.mode || 'beacon'; S.swarms = m.cv.swarms || []; S.swarmId = m.cv.swarm_id; S.swarmN = m.cv.swarm_n || 0; S.nSources = m.cv.n_sources || 0; S.simQuads = (m.sim && m.sim.quads) || []; S.simFish = m.sim ? m.sim.fish : null; S.camSource = m.sim ? m.sim.cam_source : null; S.cvFrames = m.cv.frames; S.cvW = m.cv.w; S.cvH = m.cv.h; S.cvSource = m.cv.source;
   S.yaw = m.fins.yaw; S.pitch = m.fins.pitch; S.yawCmd = m.fins.yaw_cmd; S.pitchCmd = m.fins.pitch_cmd;
   S.batt = m.batt_v; S.hoOk = m.handover.ok; S.preflight = m.preflight; S.armPending = m.arm_pending_s; S.launchPending = m.launch_pending_s; S.calibrating = m.calibrating_s; S.calibrated = !!m.preflight.calibrated; S.selftest = !!m.preflight.selftest; S.selftestRunning = !!m.selftest_running;
   if (m.handover.threshold !== S.threshold && document.activeElement !== $('thr') && document.activeElement !== $('thr-n')) setThresholdUI(m.handover.threshold*100);
@@ -793,7 +883,7 @@ function applyTelemetry(m){
   if (m.mission.set) { const t = m.mission.target; S.speed = m.mission.speed; S.mission = m.mission;
     if (!S.initLoaded || TARGET.x !== t[0] || TARGET.y !== t[1] || TARGET.z !== t[2]) { TARGET = new V(t[0], t[1], t[2]); recomputeGeometry(); placeMissionObjects(); S.initLoaded = true; $('init-kv').hidden = false;
       $('init-dist').textContent = PATH_LEN.toFixed(2) + ' m'; $('init-eta').textContent = (PATH_LEN/S.speed).toFixed(1) + ' s'; $('init-ho').textContent = Math.round(S.threshold*100) + ' % · ' + (PATH_LEN*S.threshold).toFixed(2) + ' m along path'; $('init-src').textContent = m.mission.source || 'typed in';
-      if (document.activeElement !== $('m-x') && document.activeElement !== $('m-y') && document.activeElement !== $('m-z') && document.activeElement !== $('m-speed')) { $('m-speed').value = S.speed; $('m-x').value = t[0]; $('m-y').value = t[1]; $('m-z').value = t[2]; } } }
+      if (document.activeElement !== $('m-x') && document.activeElement !== $('m-y') && document.activeElement !== $('m-z') && document.activeElement !== $('m-speed')) { $('m-speed').value = Math.round(S.speed * 100); $('m-x').value = Math.round(t[0] * 100); $('m-y').value = Math.round(t[1] * 100); $('m-z').value = Math.round(t[2] * 100); } } }
   if (m.t_mission != null) S.launchT = S.t - m.t_mission; else if (!FLYING.has(m.phase) && m.phase !== 'arrived' && m.phase !== 'aborted') S.launchT = null;
   if (m.phase !== prev) onPhase(m.phase, prev);
   if (S.connected !== wasConnected) { updateIR(); updateControls(); }
@@ -831,22 +921,25 @@ function updateDOM(){
   const hn = S.tel ? S.tel.handover : {frames_needed:5, conf_needed:0.6};
   hoSet('ho-prog', c[0], Math.round(prog*100) + ' % / ' + Math.round(S.threshold*100) + ' %');
   hoSet('ho-frames', c[1], Math.min(S.cvFrames,99) + ' / ' + hn.frames_needed); hoSet('ho-conf', c[2], fmt(cv.conf,2)); hoSet('ho-link', c[3], S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : 'no link');
-  $('ho-frames').children[1].textContent = 'Beacon seen ' + hn.frames_needed + ' frames in a row'; $('ho-conf').children[1].textContent = 'Confidence at least ' + (+hn.conf_needed).toFixed(2);
+  $('ho-frames').children[1].textContent = (S.vmode === 'swarm' ? 'Swarm' : 'Beacon') + ' seen ' + hn.frames_needed + ' frames in a row'; $('ho-conf').children[1].textContent = 'Confidence at least ' + (+hn.conf_needed).toFixed(2);
   $('imu-att').textContent = S.connected ? sgn(att.roll,1)+'° / '+sgn(att.pitch,1)+'° / '+sgn(att.yaw,1)+'°' : '—';
   $('imu-pos').textContent = S.connected ? fmt(est.x,2)+', '+fmt(est.y,2)+', '+fmt(est.z,2)+' m' : '—';
   $('imu-dist').textContent = S.connected && S.initLoaded ? unit(pos.distanceTo(TARGET)) : '—';
   $('imu-drift').textContent = S.connected ? (S.drift>0.4 ? '⚠ ' : '') + fmt(S.drift,2) + ' m' : '—';
-  const lockText = {none:'No stream', searching:'Searching for beacon', seen:'Beacon seen', locked:'Locked on beacon'}[cv.state] || cv.state;
-  const lockIc = {none:'○', searching:'◌', seen:'◐', locked:'◉'}[cv.state] || '○';
+  const sw = S.vmode === 'swarm'; const what = sw ? 'swarm' : 'beacon';
+  const lockText = {none:'No stream', searching:'Searching for ' + what, seen:(sw ? 'Swarm S' + S.swarmId + ' seen, ' + S.swarmN + ' quads' : 'Beacon seen'), locked:'Locked on ' + what, hold:'Holding, swarm briefly lost'}[cv.state] || cv.state;
+  const lockIc = {none:'○', searching:'◌', seen:'◐', locked:'◉', hold:'◒'}[cv.state] || '○';
   $('lock-t').textContent = lockText; $('lock').querySelector('.ic').textContent = lockIc;
   $('conf-fill').style.width = (cv.conf*100)+'%'; $('conf-out').textContent = fmt(cv.conf,2);
-  const seen = cv.state==='seen'||cv.state==='locked';
+  const seen = cv.state==='seen'||cv.state==='locked'||cv.state==='hold';
+  updateSwarmUI();
   $('cv-err').textContent = seen ? sgn(cv.ex,0)+', '+sgn(cv.ey,0)+' px' : '—';
   $('cv-norm').textContent = seen ? sgn(cv.ex/(S.cvW/2),3)+', '+sgn(cv.ey/(S.cvH/2),3) : '—';
   $('cv-fin').textContent = seen && (S.phase==='cv_homing'||S.phase==='handover') ? 'yaw '+sgn(yawCmd,1)+'°, pitch '+sgn(pitchCmd,1)+'°' : '—';
   $('cv-fps').textContent = S.connected ? fmt(S.cam.fps,0)+' fps · '+fmt(S.cam.cv_ms,0)+' ms' : '—';
-  $('cv-src').textContent = S.connected ? (S.tel && S.tel.cam.yolo ? 'YOLO nano loaded; IR blob is the fallback.' : 'IR blob detector (no YOLO weights loaded).') : '';
-  $('cv-alt').textContent = !S.connected ? 'No camera stream.' : seen ? 'Beacon at ' + Math.round(S.cvW/2+cv.ex) + ', ' + Math.round(S.cvH/2+cv.ey) + ' of ' + S.cvW + '×' + S.cvH + ': ' + Math.abs(Math.round(cv.ex)) + ' px ' + (cv.ex>=0?'right':'left') + ', ' + Math.abs(Math.round(cv.ey)) + ' px ' + (cv.ey>=0?'below':'above') + ' centre. Confidence ' + fmt(cv.conf,2) + '.' : 'Dark IR frame, no beacon detected.';
+  $('cv-src').textContent = S.connected ? (S.tel && S.tel.cam.yolo ? 'YOLO nano loaded; IR blob is the fallback.' : 'IR blob detector (no YOLO weights loaded).') + (S.fake ? (S.camSource === 'browser' ? ' Frames: simulated fish camera from this page.' : ' Frames: dot picture from the ground station.') : '') : '';
+  $('camsim-box').hidden = !S.fake;
+  $('cv-alt').textContent = !S.connected ? 'No camera stream.' : seen ? (sw ? 'Following swarm S' + S.swarmId + ' with ' + S.swarmN + ' quads, ' + S.swarms.length + ' swarm' + (S.swarms.length===1?'':'s') + ' visible, ' + S.nSources + ' sources. Centroid ' : 'Beacon ') + 'at ' + Math.round(S.cvW/2+cv.ex) + ', ' + Math.round(S.cvH/2+cv.ey) + ' of ' + S.cvW + '×' + S.cvH + ': ' + Math.abs(Math.round(cv.ex)) + ' px ' + (cv.ex>=0?'right':'left') + ', ' + Math.abs(Math.round(cv.ey)) + ' px ' + (cv.ey>=0?'below':'above') + ' centre. Confidence ' + fmt(cv.conf,2) + '.' : 'Dark IR frame, no beacon detected.';
   const g = (i, act, cmdv) => { const a = $('g'+i+'a'), cm = $('g'+i+'c'); const pa = act/60*100; a.style.left = (act>=0?50:50+pa)+'%'; a.style.width = Math.abs(pa)+'%'; cm.style.left = (50+cmdv/60*100)+'%'; $('f'+i).textContent = sgn(act,1)+'°'; };
   g(0,pitch,pitchCmd); g(2,pitch,pitchCmd); g(1,yaw,yawCmd); g(3,yaw,yawCmd);
   $('fin-yaw').textContent = sgn(yawCmd,1)+'° → '+sgn(yaw,1)+'°'; $('fin-pitch').textContent = sgn(pitchCmd,1)+'° → '+sgn(pitch,1)+'°';
@@ -864,6 +957,37 @@ function updateReadout(){
   else if (S.launchT==null) txt = 'On the launch point, ' + ph + '. Target is ' + unit(PATH_LEN) + ' away, ' + unit(TARGET.y) + ' up.';
   else { const d = pos.distanceTo(TARGET); const side = S.cv.ex; txt = ph + (FLYING.has(S.phase)?' at '+Math.round((snap?snap.s:S.s)*100)+' %':'') + '. Fish is ' + unit(pos.y) + ' up and ' + unit(d) + ' from the target' + ((S.cv.state==='seen'||S.cv.state==='locked') ? ', beacon ' + Math.abs(Math.round(side/10)) + '° ' + (side>=0?'right':'left') + ' of the nose.' : '.'); }
   $('readout').textContent = txt;
+}
+
+/* ================= swarm mode UI (design section 15) ================= */
+function setVisionMode(mode){ cmd({cmd:'tune', key:'vision_mode', value:mode}); }
+$('vm-beacon').addEventListener('click', () => setVisionMode('beacon'));
+$('vm-swarm').addEventListener('click', () => setVisionMode('swarm'));
+$('sw-prev').addEventListener('click', () => cmd({cmd:'swarm', action:'prev'}));
+$('sw-next').addEventListener('click', () => cmd({cmd:'swarm', action:'next'}));
+$('sw-auto').addEventListener('click', () => cmd({cmd:'swarm', action:'auto'}));
+$('ir-wrap').addEventListener('click', e => {
+  if (S.vmode !== 'swarm' || !S.connected) return;
+  const img = $('ir'); const rect = img.getBoundingClientRect(); if (!rect.width || !rect.height) return;
+  const x = (e.clientX - rect.left) / rect.width * S.cvW, y = (e.clientY - rect.top) / rect.height * S.cvH;
+  cmd({cmd:'swarm', x:Math.round(x), y:Math.round(y)});
+});
+function updateSwarmUI(){
+  const sw = S.vmode === 'swarm';
+  $('vm-beacon').setAttribute('aria-pressed', String(!sw)); $('vm-swarm').setAttribute('aria-pressed', String(sw));
+  $('swarm-box').hidden = !sw; $('ir-wrap').classList.toggle('pickable', sw && S.connected);
+  if (!sw) return;
+  $('swarm-follow').textContent = S.swarmId != null ? 'S' + S.swarmId + ' (' + S.swarmN + ' quad' + (S.swarmN===1?'':'s') + ')' : 'none yet';
+  const key = JSON.stringify(S.swarms.map(w => [w.id, w.n, Math.round(w.spread), w.selected]));
+  if (key === S.lastSwarmKey) return; S.lastSwarmKey = key;
+  const ul = $('swarm-list'); ul.replaceChildren();
+  if (!S.swarms.length) { const li = document.createElement('li'); li.className = 'hint'; li.textContent = 'No swarm in view.'; ul.appendChild(li); return; }
+  S.swarms.slice().sort((a,b) => a.id - b.id).forEach(w => {
+    const li = document.createElement('li'); const b = document.createElement('button'); b.type = 'button'; b.className = 'btn';
+    b.setAttribute('aria-pressed', String(!!w.selected));
+    const l = document.createElement('span'); l.textContent = 'S' + w.id + ' · ' + w.n + ' quad' + (w.n===1?'':'s'); const r = document.createElement('span'); r.className = 'mono'; r.textContent = 'spread ' + Math.round(w.spread) + ' px' + (w.selected ? ' · following' : '');
+    b.append(l, r); b.addEventListener('click', () => cmd({cmd:'swarm', id:w.id})); li.appendChild(b); ul.appendChild(li);
+  });
 }
 
 /* ================= IR frame (annotated MJPEG from the ground station) ================= */
@@ -918,7 +1042,7 @@ const charts = [
 /* ================= 3D view ================= */
 const wrap = $('view-wrap'), canvas = $('view3d');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(50, 4/3, 0.1, 100);
+const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(50, 4/3, 0.1, 100); camera.layers.enable(1);
 const tok = (n) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(n).trim());
 const hemi = new THREE.HemisphereLight(0xffffff, 0x334455, 0.9); scene.add(hemi); const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(4,10,6); scene.add(sun);
 const pad = new THREE.Mesh(new THREE.RingGeometry(0.3,0.4,32), new THREE.MeshBasicMaterial({side:THREE.DoubleSide})); pad.rotation.x = -Math.PI/2; pad.position.y = 0.01; scene.add(pad);
@@ -932,19 +1056,32 @@ let handoverRing = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.035, 8, 40), n
 function placeHandoverRing(){ handoverRing.position.copy(LAUNCH).addScaledVector(DIR, S.threshold*PATH_LEN); handoverRing.lookAt(TARGET); }
 placeHandoverRing();
 const estMarker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), new THREE.MeshBasicMaterial({wireframe:true})); estMarker.visible = false; scene.add(estMarker);
+[pad, planned, grid, halo, targetPole, handoverRing, estMarker].forEach(o => o.layers.set(1));   // operator overlays: hidden from the fish's own camera
+// simulated quad swarm (design section 15, F4.7): simple quadcopter models around the target
+const quadMat = new THREE.MeshStandardMaterial({roughness:0.6}); const rotorMat = new THREE.MeshBasicMaterial({transparent:true, opacity:0.55}); const ledMat = new THREE.MeshBasicMaterial();
+function makeQuad(){
+  const g = new THREE.Group(); const arm1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.03), quadMat); arm1.rotation.y = Math.PI/4; const arm2 = arm1.clone(); arm2.rotation.y = -Math.PI/4; g.add(arm1, arm2);
+  const hub = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.035, 0.07), quadMat); g.add(hub);
+  const rotors = new THREE.Group(); [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([sx,sz]) => { const r = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), rotorMat); r.rotation.x = -Math.PI/2; r.position.set(sx*0.106, 0.02, sz*0.106); rotors.add(r); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.006, 6, 20), quadMat); ring.rotation.x = Math.PI/2; ring.position.copy(r.position); rotors.add(ring); });
+  g.add(rotors); g.userData.rotors = rotors;
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), ledMat); led.position.y = -0.03; g.add(led);
+  return g;
+}
+const quads = [];
+function setQuadCount(n){ while (quads.length < n) { const q = makeQuad(); quads.push(q); scene.add(q); } while (quads.length > n) { scene.remove(quads.pop()); } }
 function placeMissionObjects(){
   beacon.position.copy(TARGET); halo.position.copy(TARGET); beaconLight.position.copy(TARGET);
   planned.geometry.setFromPoints([LAUNCH, TARGET]); planned.computeLineDistances();
   targetPole.geometry.setFromPoints([new V(TARGET.x,0,TARGET.z), TARGET]);
   const span = Math.max(12, 2*Math.ceil(Math.max(Math.abs(TARGET.x), Math.abs(TARGET.z), TARGET.y*0.6) + 2));
-  scene.remove(grid); grid = new THREE.GridHelper(span, span); scene.add(grid); applyThemeTo3D();
+  scene.remove(grid); grid = new THREE.GridHelper(span, span); grid.layers.set(1); scene.add(grid); applyThemeTo3D();
   PRESETS.side.r = Math.max(12, PATH_LEN*1.5); PRESETS.top.r = Math.max(13, PATH_LEN*1.6); if (cam.mode !== 'follow') Object.assign(cam, PRESETS[cam.mode]);
   placeHandoverRing();
 }
 window.placeMissionObjects = placeMissionObjects;
 // trails
 function makeTrail(){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2400*3), 3)); g.setDrawRange(0,0); return new THREE.Line(g, new THREE.LineBasicMaterial({linewidth:2})); }
-const trailImu = makeTrail(), trailCv = makeTrail(); scene.add(trailImu, trailCv); let nImu = 0, nCv = 0;
+const trailImu = makeTrail(), trailCv = makeTrail(); trailImu.layers.set(1); trailCv.layers.set(1); scene.add(trailImu, trailCv); let nImu = 0, nCv = 0;
 function resetTrails(){ nImu = 0; nCv = 0; trailImu.geometry.setDrawRange(0,0); trailCv.geometry.setDrawRange(0,0); S._lateWarned=false; S._driftWarned=false; }
 function appendTrail(h){ const cv = h.phase!=='imu_glide'; const tr = cv ? trailCv : trailImu; let n = cv ? nCv : nImu; if (n >= 2400) return; const a = tr.geometry.attributes.position; if (cv && nCv===0 && nImu>0) { a.setXYZ(0, S.hist[S.hist.length-2].pos.x, S.hist[S.hist.length-2].pos.y, S.hist[S.hist.length-2].pos.z); n = 1; } a.setXYZ(n, h.pos.x, h.pos.y, h.pos.z); n++; a.needsUpdate = true; tr.geometry.setDrawRange(0, n); if (cv) nCv = n; else nImu = n; }
 // fish
@@ -961,7 +1098,7 @@ fish.add(finP0, finP2, finY1, finY3); fish.position.copy(LAUNCH).add(new V(0,0.3
 function applyThemeTo3D(){
   const ground = tok('--ground'), line = tok('--line'), lineStrong = tok('--line-strong'), muted = tok('--muted'), accent = tok('--accent'), imu = tok('--imu'), cv = tok('--cv');
   scene.background = ground; grid.material.color = line; grid.material.vertexColors = false; pad.material.color = muted; planned.material.color = muted; beacon.material.color = cv; halo.material.color = cv; targetPole.material.color = lineStrong;
-  handoverRing.material.color = cv; estMarker.material.color = imu; trailImu.material.color = imu; trailCv.material.color = cv; bodyMat.color = accent; finMat.color = accent.clone().lerp(new THREE.Color(0xffffff), 0.35);
+  handoverRing.material.color = cv; estMarker.material.color = imu; quadMat.color = muted.clone().lerp(new THREE.Color(0xffffff), 0.2); rotorMat.color = lineStrong; ledMat.color = cv; trailImu.material.color = imu; trailCv.material.color = cv; bodyMat.color = accent; finMat.color = accent.clone().lerp(new THREE.Color(0xffffff), 0.35);
 }
 window.applyThemeTo3D = applyThemeTo3D; applyThemeTo3D();
 new MutationObserver(applyThemeTo3D).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme','data-contrast']});
@@ -972,11 +1109,12 @@ const PRESETS = { follow:{theta:-2.3, phi:1.15, r:4.5}, side:{theta:Math.PI/2, p
 function setPreset(m){ cam.mode = m; Object.assign(cam, PRESETS[m]); ['follow','side','top'].forEach(k => $('view-'+k).setAttribute('aria-pressed', String(k===m))); $('view-badge').textContent = m[0].toUpperCase()+m.slice(1); }
 ['follow','side','top'].forEach(k => $('view-'+k).addEventListener('click', () => setPreset(k)));
 let drag = null;
-wrap.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY}; wrap.setPointerCapture(e.pointerId); });
+const inSummary = e => !!(e.target && e.target.closest && e.target.closest('#dlg-summary'));
+wrap.addEventListener('pointerdown', e => { if (inSummary(e)) return; drag = {x:e.clientX, y:e.clientY}; wrap.setPointerCapture(e.pointerId); });
 wrap.addEventListener('pointermove', e => { if (!drag) return; cam.theta -= (e.clientX-drag.x)*0.008; cam.phi = clamp(cam.phi - (e.clientY-drag.y)*0.006, 0.08, 1.5); drag = {x:e.clientX, y:e.clientY}; });
 wrap.addEventListener('pointerup', () => drag = null); wrap.addEventListener('pointercancel', () => drag = null);
-wrap.addEventListener('wheel', e => { e.preventDefault(); cam.r = clamp(cam.r * (1 + Math.sign(e.deltaY)*0.1), 1.5, 30); }, {passive:false});
-wrap.addEventListener('keydown', e => { const k = e.key; let used = true;
+wrap.addEventListener('wheel', e => { if (inSummary(e)) return; e.preventDefault(); cam.r = clamp(cam.r * (1 + Math.sign(e.deltaY)*0.1), 1.5, 30); }, {passive:false});
+wrap.addEventListener('keydown', e => { if (inSummary(e)) return; const k = e.key; let used = true;
   if (k==='ArrowLeft') cam.theta += 0.12; else if (k==='ArrowRight') cam.theta -= 0.12; else if (k==='ArrowUp') cam.phi = clamp(cam.phi-0.08,0.08,1.5); else if (k==='ArrowDown') cam.phi = clamp(cam.phi+0.08,0.08,1.5);
   else if (k==='+' || k==='=') cam.r = clamp(cam.r*0.9,1.5,30); else if (k==='-' || k==='_') cam.r = clamp(cam.r*1.1,1.5,30); else if (k==='Home') setPreset(cam.mode); else used = false;
   if (used) e.preventDefault(); });
@@ -998,10 +1136,89 @@ function render3D(){
   cam.curTarget.lerp(target, ease); cam.cur.theta += (cam.theta-cam.cur.theta)*ease; cam.cur.phi += (cam.phi-cam.cur.phi)*ease; cam.cur.r += (cam.r-cam.cur.r)*ease;
   const c = cam.cur; camera.position.set(c.r*Math.sin(c.phi)*Math.cos(c.theta), c.r*Math.cos(c.phi), c.r*Math.sin(c.phi)*Math.sin(c.theta)).add(cam.curTarget); camera.lookAt(cam.curTarget);
   halo.scale.setScalar(reduceMotion() ? 1 : 1 + 0.12*Math.sin(S.t*3));
+  // quads: true positions in fake mode, otherwise a ring of n detected quads around the target
+  const swarmMode = S.vmode === 'swarm';
+  beacon.visible = !swarmMode; halo.visible = !swarmMode;
+  const sim = swarmMode ? S.simQuads : [];
+  const n = swarmMode ? (sim.length || (S.connected ? S.swarmN : 0)) : 0;
+  setQuadCount(n);
+  quads.forEach((q, i) => {
+    if (sim.length) q.position.set(sim[i][0], sim[i][1], sim[i][2]);
+    else { const a = 2*Math.PI*i/n; q.position.set(TARGET.x + 0.45*Math.cos(a), TARGET.y, TARGET.z + 0.45*Math.sin(a)); }
+    if (!reduceMotion()) q.userData.rotors.children.forEach((c, j) => { if (j % 2 === 0) c.rotation.z += 0.6; });
+  });
   renderer.render(scene, camera);
 }
-function frame(ts){ requestAnimationFrame(frame); if (!S.tel) S.t = ts/1000; if (S.paused) return; const minGap = reduceMotion() ? 100 : 0; if (ts - lastFrame < minGap) return; lastFrame = ts; render3D(); }
+function frame(ts){ requestAnimationFrame(frame); if (!S.tel) S.t = ts/1000; try { streamPOV(ts); } catch (e) { console.warn('camsim', e); } if (S.paused) return; const minGap = reduceMotion() ? 100 : 0; if (ts - lastFrame < minGap) return; lastFrame = ts; render3D(); }
 requestAnimationFrame(frame);
+
+/* ================= simulated fish camera: render the nose view and stream it to the station (fake mode) ================= */
+const POV_W = 640, POV_H = 480;
+const povCanvas = document.createElement('canvas'); povCanvas.width = POV_W; povCanvas.height = POV_H;
+let povRenderer = null, povCam = null, povGround = null, povSky = null, camWs = null, camWsRetry = null, povBusy = false, lastPov = 0;
+const pov2d = document.createElement('canvas'); pov2d.width = POV_W; pov2d.height = POV_H; const povCtx = pov2d.getContext('2d', {willReadFrequently: true});
+function povInit(){
+  if (povRenderer) return true;
+  try { povRenderer = new THREE.WebGLRenderer({canvas: povCanvas, antialias: false, preserveDrawingBuffer: true}); } catch (e) { return false; }
+  povRenderer.setPixelRatio(1); povRenderer.setSize(POV_W, POV_H, false);
+  povCam = new THREE.PerspectiveCamera(49, 4/3, 0.05, 80);          // 62 deg x 49 deg like the ESP32-CAM
+  povCam.layers.set(0); povCam.layers.enable(2);
+  povGround = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({color: 0x4a6b3a, roughness: 1})); povGround.rotation.x = -Math.PI/2; povGround.position.y = -0.02; povGround.layers.set(2); scene.add(povGround);
+  povSky = new THREE.Mesh(new THREE.SphereGeometry(70, 16, 12), new THREE.MeshBasicMaterial({color: 0x8fb8d8, side: THREE.BackSide})); povSky.layers.set(2); scene.add(povSky);
+  return true;
+}
+function camsimMode(){ return S.fake && S.connected ? $('camsim').value : 'off'; }
+function camWsOpen(){
+  if (camWs || camWsRetry) return;
+  try { camWs = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/camsim'); camWs.binaryType = 'arraybuffer'; } catch (e) { return; }
+  camWs.onclose = () => { camWs = null; if (camsimMode() !== 'off') camWsRetry = setTimeout(() => { camWsRetry = null; camWsOpen(); }, 1000); };
+  camWs.onerror = () => { try { camWs.close(); } catch (_) {} };
+}
+function camWsClose(){ if (camWs) { try { camWs.close(); } catch (_) {} camWs = null; } }
+function fishPose(){
+  const f = S.simFish; if (!f) return null;
+  const y = f.yaw*Math.PI/180, p = f.pitch*Math.PI/180, r = f.roll*Math.PI/180;
+  const fwd = new V(Math.sin(y)*Math.cos(p), Math.sin(p), Math.cos(y)*Math.cos(p));
+  const right0 = new V(Math.cos(y), 0, -Math.sin(y)); const up0 = new V().crossVectors(fwd, right0);
+  const right = right0.clone().multiplyScalar(Math.cos(r)).add(up0.clone().multiplyScalar(Math.sin(r))); const up = new V().crossVectors(fwd, right);
+  return {pos: new V(f.pos[0], f.pos[1], f.pos[2]), fwd, up};
+}
+function povPostIR(){
+  const img = povCtx.getImageData(0, 0, POV_W, POV_H), p = img.data;
+  for (let i = 0; i < p.length; i += 4) { let g = (0.3*p[i] + 0.59*p[i+1] + 0.11*p[i+2]) * 0.9 + (Math.random() - 0.5) * 10 + 8; p[i] = p[i+1] = p[i+2] = g < 0 ? 0 : g > 255 ? 255 : g; }
+  povCtx.putImageData(img, 0, 0);
+  const tmp = document.createElement('canvas'); tmp.width = POV_W; tmp.height = POV_H; const t = tmp.getContext('2d');
+  t.drawImage(pov2d, 0, 0); const d = t.getImageData(0, 0, POV_W, POV_H), q = d.data;
+  for (let i = 0; i < q.length; i += 4) { const v = q[i] > 140 ? q[i] : 0; q[i] = q[i+1] = q[i+2] = v; }
+  t.putImageData(d, 0, 0);
+  povCtx.globalCompositeOperation = 'lighter'; povCtx.filter = 'blur(3px)'; povCtx.drawImage(tmp, 0, 0); povCtx.drawImage(tmp, 0, 0);
+  povCtx.filter = 'none'; povCtx.globalCompositeOperation = 'source-over';
+}
+function renderPOV(mode){
+  const pose = fishPose(); if (!pose || !povInit()) return false;
+  const ir = mode === 'ir';
+  povCam.position.copy(pose.pos).addScaledVector(pose.fwd, 0.3); povCam.up.copy(pose.up); povCam.lookAt(pose.pos.clone().addScaledVector(pose.fwd, 3));
+  // swap looks: IR = black world, dark bodies, white LEDs; visible = sky and ground
+  const savedBg = scene.background, savedLed = ledMat.color.clone(), savedQuad = quadMat.color.clone(), savedBeacon = beacon.material.color.clone(), savedFishVis = fish.visible;
+  fish.visible = false; povGround.visible = !ir; povSky.visible = !ir;
+  if (ir) { scene.background = new THREE.Color(0x000000); ledMat.color.set(0xffffff); quadMat.color.set(0x161616); beacon.material.color.set(0xffffff); }
+  else { scene.background = new THREE.Color(0x8fb8d8); }
+  povRenderer.render(scene, povCam);
+  scene.background = savedBg; ledMat.color.copy(savedLed); quadMat.color.copy(savedQuad); beacon.material.color.copy(savedBeacon); fish.visible = savedFishVis;
+  povCtx.filter = 'none'; povCtx.globalCompositeOperation = 'source-over'; povCtx.drawImage(povCanvas, 0, 0);
+  if (ir) povPostIR();
+  return true;
+}
+function streamPOV(ts){
+  const mode = camsimMode();
+  if (mode === 'off') { camWsClose(); return; }
+  camWsOpen();
+  if (!camWs || camWs.readyState !== 1 || povBusy || ts - lastPov < 100 || camWs.bufferedAmount > 200000) return;
+  if (!renderPOV(mode)) return;
+  lastPov = ts; povBusy = true;
+  pov2d.toBlob(b => { povBusy = false; if (b && camWs && camWs.readyState === 1) b.arrayBuffer().then(buf => { if (camWs && camWs.readyState === 1) camWs.send(buf); }); }, 'image/jpeg', 0.75);
+}
+$('camsim').addEventListener('change', () => { if (camsimMode() === 'off') camWsClose(); });
 
 /* ================= replay ================= */
 function enableReplay(){ if (S.hist.length < 2) return; $('replay').classList.add('on'); $('scrub').max = S.hist.length-1; $('scrub').value = S.hist.length-1; $('scrub-t').textContent = 't = ' + S.hist[S.hist.length-1].t.toFixed(1) + ' s (live end)'; }
@@ -1016,7 +1233,7 @@ document.addEventListener('keydown', e => {
   if (!settings.keys || typing || dlgOpen || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k==='x') { abort(); } else if (k==='a') { if (!$('btn-arm').disabled) $('btn-arm').click(); } else if (k==='l') { if (!$('btn-launch').disabled) $('btn-launch').click(); }
-  else if (k==='n') { if (!$('btn-neutral').disabled) $('btn-neutral').click(); } else if (k==='p') { $('btn-pause').click(); }
+  else if (k==='n') { if (!$('btn-neutral').disabled) $('btn-neutral').click(); } else if (k==='p') { $('btn-pause').click(); } else if (k==='s') { stopMission(); } else if (k==='[' || k===']') { if (S.vmode==='swarm' && S.connected) cmd({cmd:'swarm', action: k==='[' ? 'prev' : 'next'}); }
   else if (k==='1') setPreset('follow'); else if (k==='2') setPreset('side'); else if (k==='3') setPreset('top'); else return;
   e.preventDefault();
 });

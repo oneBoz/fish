@@ -23,7 +23,8 @@ import numpy as np
 
 from .guidance import FLYING, Guidance
 from .imu import G, ImuEstimator
-from .link import FakeFish, FishLink
+from .imu import euler_deg
+from .link import FakeFish, FishLink, SimCamera
 from .vision import MjpegSource, Vision
 
 DEFAULT_CFG = {
@@ -33,10 +34,14 @@ DEFAULT_CFG = {
     "invert_yaw": False, "invert_pitch": False,
     "blur": 9, "min_area": 4, "thresh_mode": "relative", "rel_threshold": 0.5, "min_contrast": 40, "threshold": 150,
     "calib_s": 3.0, "batt_min_v": 7.0, "launch_detect_g": 2.0, "launch_wait_s": 10.0,
+    # vision mode (design section 15): "beacon" = brightest source, "swarm" = follow a cluster's centroid
+    "vision_mode": "beacon", "cluster_radius": 200, "swarm_match": 60, "max_sources": 32,
+    "yolo_conf": 0.35, "yolo_imgsz": 320, "yolo_classes": "", "sim_quads": 4,
 }
 TUNABLE = {"kp_imu", "kp", "ki", "deadband_px", "max_step", "fin_max", "invert_yaw", "invert_pitch",
            "blur", "min_area", "thresh_mode", "rel_threshold", "min_contrast", "threshold",
-           "beacon_frames_needed", "conf_needed", "handover_blend_s"}
+           "beacon_frames_needed", "conf_needed", "handover_blend_s",
+           "vision_mode", "cluster_radius", "swarm_match", "max_sources", "yolo_conf", "yolo_classes", "sim_quads"}
 
 
 class GroundStation:
@@ -113,9 +118,10 @@ class GroundStation:
             return {"ok": False, "error": "Already connected. Disconnect first."}
         if self.args.fake:
             fish = FakeFish(on_imu=self.imu.update, on_batt=self._on_batt, axes=self.args.imu_axes)
+            fish.set_swarm(self.cfg["vision_mode"] == "swarm", self.cfg["sim_quads"])
             self.link = fish
-            self.cam = fish.cam
-            fish.start(); fish.cam.start()
+            self.cam = SimCamera(fish.cam)      # browser-rendered fish view when the page streams it
+            fish.start(); self.cam.start()
         else:
             self.link = FishLink(fin_ip, on_imu=self.imu.update, on_batt=self._on_batt)
             self.link.start()
@@ -166,6 +172,13 @@ class GroundStation:
     def _on_batt(self, v):
         self.batt_v = v
 
+    def push_sim_frame(self, data):
+        """A JPEG of the fish's point of view rendered by the page (fake mode only)."""
+        cam = self.cam
+        if not self.args.fake or not isinstance(cam, SimCamera):
+            return False
+        return cam.push(data)
+
     # ------------------------------------------------------------------ commands
     def command(self, d):
         cmd = d.get("cmd")
@@ -187,7 +200,9 @@ class GroundStation:
 
     def cmd_mission(self, d):
         if self.phase in FLYING:
-            return {"ok": False, "error": "Cannot change the mission while the fish is flying. Abort first."}
+            return {"ok": False, "error": "Cannot change the mission while the fish is flying. Stop the mission first."}
+        if self.phase == "armed":
+            return {"ok": False, "error": "Disarm to change the mission."}
         try:
             speed = float(d["speed"]); target = [float(v) for v in d["target"]]
         except (KeyError, TypeError, ValueError):
@@ -242,14 +257,20 @@ class GroundStation:
         self.selftest_ok = moved
         self.log("Fin self-test passed: fins acknowledged every step." if moved else "Fin self-test failed: no ACKs while wiggling.", "good" if moved else "warn")
 
+    ADVISORY_NAMES = {"calibrated": "IMU calibration", "selftest": "fin self-test", "batt": "battery check"}
+
     def preflight(self):
-        return {
+        """Required items gate Arm; advisory items only produce a warning (design section 12)."""
+        pf = {
             "link": bool(self.connected and self.link and self.link.alive),
             "mission": bool(self.mission["set"]),
             "calibrated": self.calibrated,
             "selftest": self.selftest_ok,
             "batt": (self.batt_v is None and self.connected) or (self.batt_v is not None and self.batt_v >= self.cfg["batt_min_v"]),
         }
+        pf["can_arm"] = pf["link"] and pf["mission"]
+        pf["skipped"] = [name for key, name in self.ADVISORY_NAMES.items() if not pf[key]]
+        return pf
 
     def cmd_arm(self, d):
         if self.phase == "armed":
@@ -257,18 +278,19 @@ class GroundStation:
         if self.phase != "ready":
             return {"ok": False, "error": "Arm only when Ready."}
         pf = self.preflight()
-        missing = [k for k, v in pf.items() if not v]
-        if missing:
-            names = {"link": "fin board link", "mission": "mission target and speed", "calibrated": "IMU calibration", "selftest": "fin self-test", "batt": "battery above %.1f V" % self.cfg["batt_min_v"]}
-            return {"ok": False, "error": "Pre-flight not complete: " + ", ".join(names[m] for m in missing) + "."}
+        if not pf["can_arm"]:
+            missing = [n for k, n in (("link", "fin board link"), ("mission", "mission target and speed")) if not pf[k]]
+            return {"ok": False, "error": "Cannot arm without " + " and ".join(missing) + "."}
         now = time.time()
         if self.arm_pending_until and now < self.arm_pending_until:
             self.arm_pending_until = None
+            if pf["skipped"]:
+                self.log("Armed without " + ", ".join(pf["skipped"]) + ".", "warn")
             self.set_phase("armed", "armed by operator")
-            return {"ok": True, "armed": True}
+            return {"ok": True, "armed": True, "skipped": pf["skipped"]}
         self.arm_pending_until = now + 5.0
-        self.log("Arm requested: press Confirm arm within 5 s.")
-        return {"ok": True, "armed": False, "pending_s": 5.0}
+        self.log("Arm requested: press Confirm arm within 5 s." + (" Skipped: " + ", ".join(pf["skipped"]) + "." if pf["skipped"] else ""))
+        return {"ok": True, "armed": False, "pending_s": 5.0, "skipped": pf["skipped"]}
 
     def cmd_disarm(self, d):
         self.arm_pending_until = None
@@ -304,13 +326,14 @@ class GroundStation:
         self.set_phase("imu_glide", why)
 
     def cmd_abort(self, d):
-        if self.phase not in FLYING and self.phase != "armed":
+        """Operator abort: fins to neutral and straight back to Ready, like Disarm (design section 14).
+        The Aborted phase is reserved for automatic faults (link lost, path overrun)."""
+        if self.phase == "armed":
+            return self.cmd_stop(d)
+        if self.phase not in FLYING:
             return {"ok": False, "error": "Nothing to abort."}
-        self.launch_pending_until = None
-        self.arm_pending_until = None
-        self.override["on"] = False
-        self.set_phase("aborted", "ABORT pressed, fins to neutral, link kept", "crit")
-        return {"ok": True}
+        self._end_mission("ABORT pressed, fins to neutral, back to Ready", "crit")
+        return {"ok": True, "from": "flight"}
 
     def cmd_fins_neutral(self, d):
         if not self.link:
@@ -354,8 +377,30 @@ class GroundStation:
             v = int(float(v))
         elif isinstance(cur, float):
             v = float(v)
+        elif isinstance(cur, str):
+            v = str(v)
+        if k == "vision_mode" and v not in ("beacon", "swarm"):
+            return {"ok": False, "error": "vision_mode must be 'beacon' or 'swarm'."}
         self.cfg[k] = v
+        if k in ("vision_mode", "sim_quads"):
+            if self.link is not None and self.link.fake:
+                self.link.set_swarm(self.cfg["vision_mode"] == "swarm", self.cfg["sim_quads"])
+            if k == "vision_mode":
+                if self.vision is not None:
+                    self.vision.tracker.reset()
+                self.log("Vision mode: %s." % ("swarm, following the biggest cluster's centroid" if v == "swarm" else "beacon, brightest source"))
         return {"ok": True, "key": k, "value": v}
+
+    def cmd_swarm(self, d):
+        """Pick which swarm to follow: {"id": 3} | {"action": "next"|"prev"|"auto"} | {"x": px, "y": px}."""
+        if self.vision is None:
+            return {"ok": False, "error": "Not connected."}
+        if self.cfg["vision_mode"] != "swarm":
+            return {"ok": False, "error": "Switch the vision mode to swarm first."}
+        r = self.vision.select(d)
+        if r["ok"]:
+            self.log("Following swarm %s." % ("S%d" % r["selected"] if r["selected"] is not None else "auto (biggest)"))
+        return r
 
     def cmd_force_handover(self, d):
         if self.phase != "imu_glide":
@@ -369,17 +414,32 @@ class GroundStation:
         self.set_phase("imu_glide", "returned to IMU by operator", "warn")
         return {"ok": True}
 
-    def cmd_new_mission(self, d):
-        if self.phase not in ("arrived", "aborted"):
-            return {"ok": False, "error": "New mission only after Arrived or Aborted."}
+    def cmd_stop(self, d):
+        """Routine end of a mission from any phase after Ready: fins neutral, back to Ready.
+        Keeps the link, calibration, self-test, mission parameters and the flight history."""
+        if self.phase in ("disconnected", "ready"):
+            return {"ok": False, "error": "No mission to stop."}
+        was = self.phase
+        why = {"armed": "disarmed by operator", "arrived": "back to Ready", "aborted": "back to Ready"}.get(was, "mission stopped by operator, fins to neutral")
+        self._end_mission(why, "warn" if was in FLYING else "info")
+        return {"ok": True, "from": was}
+
+    def _end_mission(self, why, level):
+        self.launch_pending_until = None
+        self.arm_pending_until = None
+        self.override["on"] = False
+        self.selftest_cmd = None
+        self.guidance.prev_yaw = self.guidance.prev_pitch = 0.0
+        self.imu.reset_flight()
         self.launch_time = None
-        self.imu.reset()
-        self.calibrated = False
-        self.selftest_ok = False
-        if self.link and self.link.fake:
-            self.link.reset()
-        self.set_phase("ready" if self.connected else "disconnected", "new mission")
-        return {"ok": True}
+        if self.link:
+            self.link.home()
+            if self.link.fake:
+                self.link.reset()
+        self.set_phase("ready", why, level)
+
+    def cmd_new_mission(self, d):
+        return self.cmd_stop(d)
 
     # ------------------------------------------------------------------ loop
     def loop(self):
@@ -459,11 +519,15 @@ class GroundStation:
             "link": {"fin_rtt_ms": None if not link or link.rtt_ms is None else round(link.rtt_ms, 1), "sent": link.sent if link else 0, "acked": link.acked if link else 0,
                      "alive": link_ok, "imu_age_ms": None if not link or link.imu_age_ms is None else round(link.imu_age_ms), "imu_rate": round(link.imu_rate, 1) if link else 0.0, "error": link.error if link else None},
             "cam": {"connected": bool(self.cam and self.cam.connected), "fps": round(self.vision.fps, 1) if self.vision else 0.0, "cv_ms": round(self.vision.proc_ms, 1) if self.vision else 0.0,
-                    "error": getattr(self.cam, "error", None) if self.cam else None, "yolo": bool(self.vision and self.vision.yolo)},
+                    "error": getattr(self.cam, "error", None) if self.cam else None, "yolo": bool(self.vision and self.vision.yolo),
+                    "yolo_kind": self.vision.yolo.kind if self.vision and self.vision.yolo else None, "yolo_error": self.vision.yolo_error if self.vision else None},
             "imu": {"roll": est["roll"], "pitch": est["pitch"], "yaw": est["yaw"], "samples": est["samples"]},
             "est": {"x": est["x"], "y": est["y"], "z": est["z"], "dist": est.get("dist"), "drift": est["drift"], "drift_warn": est["drift"] > 0.4},
             "cv": {"state": state, "conf": cv["conf"], "frames": cv["frames"], "ex_px": cv["ex_px"], "ey_px": cv["ey_px"], "w": cv["w"], "h": cv["h"],
-                   "radius_px": cv["radius_px"], "boxes": cv["boxes"], "source": cv["source"], "lost_s": cv["lost_s"]},
+                   "radius_px": cv["radius_px"], "boxes": cv["boxes"], "source": cv["source"], "lost_s": cv["lost_s"],
+                   "mode": cv.get("mode", "beacon"), "n_sources": cv.get("n_sources", 0), "swarm_id": cv.get("swarm_id"), "swarm_n": cv.get("swarm_n", 0),
+                   "swarms": [{k: sw[k] for k in ("id", "x", "y", "n", "spread", "selected")} for sw in cv.get("swarms", [])]},
+            "sim": self._sim_block(link),
             "fins": {"yaw_cmd": round(yaw_cmd, 1), "pitch_cmd": round(pitch_cmd, 1), "yaw": round(link.fin_yaw, 1) if link else 0.0, "pitch": round(link.fin_pitch, 1) if link else 0.0},
             "handover": {"threshold": self.cfg["handover_threshold"], "ok": self.guidance.last_conditions, "frames_needed": self.cfg["beacon_frames_needed"], "conf_needed": self.cfg["conf_needed"]},
             "mission": {"speed": m["speed"], "target": m["target"], "set": m["set"], "path_len": plen, "eta_s": None if not plen else round(plen / m["speed"], 1), "source": m["source"]},
@@ -474,6 +538,16 @@ class GroundStation:
             "calibrating_s": self.imu.calibrating_s, "selftest_running": self.selftest_cmd is not None, "fault": self.guidance.fault,
             "cfg": {k: self.cfg[k] for k in TUNABLE},
         }
+
+    def _sim_block(self, link):
+        """Fake mode only: true quad positions and the true fish pose, for the 3D demo and the simulated camera."""
+        if link is None or not getattr(link, "fake", False):
+            return {"quads": [], "fish": None, "cam_source": None}
+        with link.lock:
+            pos = link.pos.tolist(); yaw, pitch, roll = euler_deg(link.R)
+        return {"quads": link.quad_positions() if self.cfg["vision_mode"] == "swarm" else [],
+                "fish": {"pos": [round(v, 3) for v in pos], "yaw": round(yaw, 1), "pitch": round(pitch, 1), "roll": round(roll, 1), "launched": bool(link.launched)},
+                "cam_source": self.cam.source if isinstance(self.cam, SimCamera) else None}
 
     # ------------------------------------------------------------------ logs
     def export_json(self):

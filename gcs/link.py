@@ -168,6 +168,9 @@ class FakeFish(threading.Thread):
         self.target = np.array([2.0, 8.0, 1.0])
         self.dist_yaw = self.dist_pitch = 0.0
         self.launch_spike = 0.0
+        self.swarm_on = False
+        self.quads = []                 # [{off: world offset from target (m), vel}] simulated quad swarm
+        self.set_swarm(False, 4)
         self.cam = FakeIRCam(self, hfov, vfov)
         self._stop = threading.Event()
         self.lock = threading.RLock()          # reset() calls set_mission() under the lock
@@ -203,6 +206,34 @@ class FakeFish(threading.Thread):
 
     def basis(self):
         return self.R[:, 0].copy(), self.R[:, 1].copy(), self.R[:, 2].copy()
+
+    # ---- simulated quad swarm (design section 15) ----
+    def set_swarm(self, on, n=4, radius=0.4):
+        """n quads hovering around the mission target, each with its own IR LED."""
+        with getattr(self, "lock", threading.RLock()):
+            self.swarm_on = bool(on)
+            n = max(1, int(n))
+            if len(self.quads) != n:
+                self.quads = []
+                for i in range(n):
+                    ang = 2 * math.pi * i / n
+                    r = radius * (0.5 + 0.5 * self.rng.random())
+                    self.quads.append({"off": np.array([r * math.cos(ang), 0.25 * (self.rng.random() - 0.5), r * math.sin(ang)]),
+                                       "vel": np.zeros(3), "radius": radius})
+
+    def _step_quads(self, dt):
+        for q in self.quads:
+            q["vel"] += np.array([self.rng.gauss(0, 0.15), self.rng.gauss(0, 0.05), self.rng.gauss(0, 0.15)]) * dt
+            q["vel"] *= 0.98
+            q["off"] = q["off"] + q["vel"] * dt
+            r = float(np.linalg.norm(q["off"]))
+            if r > q["radius"]:
+                q["off"] *= q["radius"] / r; q["vel"] *= -0.5
+
+    def quad_positions(self):
+        """True world positions of the quads (fake mode only, for the 3D demo)."""
+        with self.lock:
+            return [(self.target + q["off"]).tolist() for q in self.quads] if self.swarm_on else []
 
     # ---- bench controls ----
     def set_mission(self, speed, target):
@@ -245,6 +276,8 @@ class FakeFish(threading.Thread):
                 self.dist_yaw = max(-1.5, min(1.5, self.dist_yaw + self.rng.gauss(0, 0.4) * dt))
                 self.dist_pitch = max(-1.0, min(1.0, self.dist_pitch + self.rng.gauss(0, 0.3) * dt))
                 rates = np.zeros(3)                        # body rates (p, q, r) about (f, r, u), deg/s
+                if self.swarm_on:
+                    self._step_quads(dt)
                 if self.launched:
                     nose_up = self.turn_rate * self.fin_pitch + self.dist_pitch
                     nose_right = self.turn_rate * self.fin_yaw + self.dist_yaw
@@ -270,6 +303,65 @@ class FakeFish(threading.Thread):
                 last_batt = self.last_imu_time
                 if self.on_batt: self.on_batt(self.batt_v)
             time.sleep(max(0.0, period - (time.time() - t0)))
+
+
+class SimCamera:
+    """
+    Fake-mode camera source fed by the browser: the GCS page renders the fish's point of view
+    with Three.js (IR-style or visible light) and pushes JPEG frames over /camsim. Frames older
+    than `stale_s` fall back to the FakeIRCam dot picture, so the pipeline keeps running when
+    no page is open. Same surface as FakeIRCam / MjpegSource: latest(), seq, fps, connected.
+    """
+
+    def __init__(self, fallback, stale_s=1.0):
+        self.fallback = fallback
+        self.stale_s = stale_s
+        self.lock = threading.Lock()
+        self.frame = None
+        self.t = 0.0
+        self._seq = 0
+        self.pushed = 0
+        self.error = None
+        self.connected = True
+        self._times = []
+
+    def start(self): self.fallback.start()
+    def stop(self): self.fallback.stop()
+
+    def push(self, jpeg_bytes):
+        img = cv2.imdecode(np.frombuffer(jpeg_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            self.error = "bad frame from the browser"
+            return False
+        now = time.time()
+        with self.lock:
+            self.frame = img; self.t = now; self._seq += 1; self.pushed += 1
+            self._times.append(now); self._times = [t for t in self._times if now - t < 2.0]
+        return True
+
+    @property
+    def fresh(self):
+        return self.frame is not None and (time.time() - self.t) < self.stale_s
+
+    @property
+    def source(self):
+        return "browser" if self.fresh else "fake"
+
+    @property
+    def seq(self):
+        return (1_000_000_000 + self._seq) if self.fresh else self.fallback.seq
+
+    @property
+    def fps(self):
+        if self.fresh:
+            return round(len(self._times) / 2.0, 1)
+        return self.fallback.fps
+
+    def latest(self):
+        if self.fresh:
+            with self.lock:
+                return self.frame.copy()
+        return self.fallback.latest()
 
 
 class FakeIRCam(threading.Thread):
@@ -304,17 +396,24 @@ class FakeIRCam(threading.Thread):
             img[ys, xs] = self.rng.integers(20, 50, n)
             with self.fish.lock:
                 fwd, right, up = self.fish.basis()
-                rel = self.fish.target - self.fish.pos
-            d = float(np.linalg.norm(rel))
-            f, r, u = float(np.dot(rel, fwd)), float(np.dot(rel, right)), float(np.dot(rel, up))
-            if f > 0.05 and d < self.ir_range:
-                px = self.w / 2 + (r / f) / self.tan_h * self.w / 2
-                py = self.h / 2 - (u / f) / self.tan_v * self.h / 2
-                if -40 < px < self.w + 40 and -40 < py < self.h + 40:
-                    rad = int(max(4, min(120, 22 / max(0.15, d))))
-                    bright = int(170 + 85 * (1 - min(1.0, d / self.ir_range)))
-                    cv2.circle(img, (int(px), int(py)), rad, bright, -1)
-                    img = cv2.GaussianBlur(img, (0, 0), max(1, rad / 3))
+                points = [self.fish.target + q["off"] for q in self.fish.quads] if self.fish.swarm_on else [self.fish.target]
+                pos = self.fish.pos.copy()
+            led = 22.0 if len(points) == 1 else 9.0          # a quad's LED is smaller than the beacon
+            drawn = 0
+            for pt in points:
+                rel = pt - pos
+                d = float(np.linalg.norm(rel))
+                f, r, u = float(np.dot(rel, fwd)), float(np.dot(rel, right)), float(np.dot(rel, up))
+                if f > 0.05 and d < self.ir_range:
+                    px = self.w / 2 + (r / f) / self.tan_h * self.w / 2
+                    py = self.h / 2 - (u / f) / self.tan_v * self.h / 2
+                    if -40 < px < self.w + 40 and -40 < py < self.h + 40:
+                        rad = int(max(3, min(120, led / max(0.15, d))))
+                        bright = int(170 + 85 * (1 - min(1.0, d / self.ir_range)))
+                        cv2.circle(img, (int(px), int(py)), rad, bright, -1)
+                        drawn = max(drawn, rad)
+            if drawn:
+                img = cv2.GaussianBlur(img, (0, 0), max(1, drawn / 3))
             frame = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             with self.lock:
                 self.frame = frame

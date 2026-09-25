@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quad Synth</title>
+<style>
+:root{--bg:#f2f5f8;--surface:#fff;--ink:#12202c;--muted:#55667a;--line:#cbd5e0;--accent:#0b6e8e;--accent-ink:#fff;--crit:#a72c2c;--good:#0b6b0b}
+@media (prefers-color-scheme:dark){:root{--bg:#0d141b;--surface:#172230;--ink:#e9eff4;--muted:#9dacbb;--line:#2a3846;--accent:#5ec6e4;--accent-ink:#0d141b;--crit:#f07b7b;--good:#5fd35f}}
+*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}
+h1{font-size:1.3rem;margin:0 0 .25rem}h2{font-size:1rem;margin:0}
+.wrap{display:grid;gap:1rem;grid-template-columns:minmax(280px,360px) minmax(0,1fr)}@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:1rem;display:flex;flex-direction:column;gap:.7rem}
+label{display:flex;flex-direction:column;gap:.2rem;font-size:.92rem}
+input[type=number],select{min-height:44px;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit;font:inherit}
+input[type=range]{min-height:44px;accent-color:var(--accent)}
+.row{display:flex;gap:.5rem;flex-wrap:wrap}
+.btn{min-height:44px;padding:.5rem 1rem;border-radius:6px;border:1px solid var(--muted);background:var(--surface);color:inherit;font:inherit;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}.btn:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+canvas{display:block;max-width:100%;border:1px solid var(--line);border-radius:6px;background:#000}
+canvas[hidden]{display:none}
+.preview{position:relative;width:fit-content;max-width:100%}
+.preview svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.preview rect{fill:none;stroke:#eb6834;stroke-width:2}
+.hint{color:var(--muted);font-size:.85rem}.err{color:var(--crit)}.ok{color:var(--good)}
+progress{width:100%;height:1rem}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
+</style>
+</head>
+<body>
+<h1>Quad Synth: synthetic drone images for YOLO</h1>
+<p class="hint">Renders random scenes of procedurally varied quadcopters with Three.js and writes YOLO labels from the projected geometry. Run <code>python tools/synth/server.py</code> and open this page through it so the files are saved.</p>
+<div class="wrap">
+  <section class="panel" aria-labelledby="h-set">
+    <h2 id="h-set">Settings</h2>
+    <label>Images to generate <input type="number" id="count" value="1000" min="1" max="50000" step="1"></label>
+    <label>Image size <select id="size"><option value="640x480" selected>640 × 480 (ESP32-CAM)</option><option value="640x640">640 × 640</option><option value="320x240">320 × 240</option></select></label>
+    <label>IR-style share <output id="ir-o">50 %</output><input type="range" id="ir" min="0" max="100" step="5" value="50"></label>
+    <label>Max drones per image <input type="number" id="maxd" value="5" min="1" max="12"></label>
+    <label>Empty images (no drone) <output id="empty-o">10 %</output><input type="range" id="empty" min="0" max="50" step="5" value="10"></label>
+    <label>Distractors (lights, birds, clutter) <output id="dis-o">60 %</output><input type="range" id="dis" min="0" max="100" step="10" value="60"></label>
+    <label>Validation share <output id="val-o">15 %</output><input type="range" id="val" min="5" max="40" step="5" value="15"></label>
+    <label>Random seed <input type="number" id="seed" value="1" min="0" step="1"></label>
+    <div class="row"><button class="btn" id="btn-preview">Preview one</button><button class="btn primary" id="btn-start">Generate and save</button><button class="btn" id="btn-stop" disabled>Stop</button></div>
+    <progress id="prog" value="0" max="1"></progress>
+    <p id="status" role="status" aria-live="polite">Idle.</p>
+    <p id="server" class="hint">Checking the save server…</p>
+  </section>
+  <section class="panel" aria-labelledby="h-prev">
+    <h2 id="h-prev">Preview <span class="hint" id="prev-info"></span></h2>
+    <div class="preview"><canvas id="out" width="640" height="480" aria-label="Rendered preview with label boxes"></canvas><svg id="boxes" viewBox="0 0 640 480" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+    <p class="hint">Orange boxes are the labels that will be written. Five base models (X, H, plus, hex, racer) with random arms, hubs, rotors, guards, legs, colours and LEDs. IR-style frames are dark with bright LEDs and noise, like the fish's filtered camera.</p>
+    <canvas id="gl" width="640" height="480" hidden aria-hidden="true"></canvas>
+  </section>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+[['ir','ir-o',' %'],['empty','empty-o',' %'],['dis','dis-o',' %'],['val','val-o',' %']].forEach(([i,o,u]) => $(i).addEventListener('input', e => { $(o).textContent = e.target.value + u; }));
+
+/* ---------- seeded RNG ---------- */
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rng = mulberry32(1);
+const rand = (a,b) => a + (b-a)*rng();
+const pick = arr => arr[Math.floor(rng()*arr.length)];
+const chance = p => rng() < p;
+
+/* ---------- renderer ---------- */
+const gl = $('gl'), out = $('out'), ctx = out.getContext('2d');
+const renderer = new THREE.WebGLRenderer({canvas: gl, antialias: true, preserveDrawingBuffer: true});
+renderer.setPixelRatio(1);
+let W = 640, H = 480;
+function setSize(){ [W,H] = $('size').value.split('x').map(Number); renderer.setSize(W,H,false); out.width = W; out.height = H; $('boxes').setAttribute('viewBox','0 0 '+W+' '+H); }
+
+/* ---------- drone models ---------- */
+const MODELS = ['x-frame','h-frame','plus','hex','racer'];
+function makeDrone(model, ir){
+  const g = new THREE.Group();
+  const bodyColour = ir ? 0x1a1a1a : pick([0x0f0f0f,0x2b2b2b,0x3d3d3d,0x5a5a5a,0xdddddd,0xffffff,0xe07020,0x3060c0,0xc03030,0x30a050]);
+  const mat = new THREE.MeshStandardMaterial({color: bodyColour, roughness: rand(0.4,0.9), metalness: rand(0,0.4)});
+  const accent = new THREE.MeshStandardMaterial({color: ir ? 0x222222 : pick([0x111111,0xe07020,0x40c0ff,0xffffff]), roughness: 0.6});
+  const scale = rand(0.55, 1.6);
+  const armLen = rand(0.14, 0.26) * scale, armR = rand(0.007, 0.016) * scale;
+  const rotorR = rand(0.05, 0.09) * scale;
+  const hubW = rand(0.06, 0.12) * scale, hubH = rand(0.025, 0.06) * scale;
+  const tips = [];
+  if (model === 'h-frame') {
+    const w = armLen * 0.55, l = armLen * 0.9;
+    [-1,1].forEach(sx => { const rail = new THREE.Mesh(new THREE.BoxGeometry(armR*2.2, armR*1.6, l*2), mat); rail.position.set(sx*w, 0, 0); g.add(rail); });
+    const cross = new THREE.Mesh(new THREE.BoxGeometry(w*2, armR*1.6, armR*2.5), mat); g.add(cross);
+    [[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([sx,sz]) => tips.push(new THREE.Vector3(sx*w, 0, sz*l)));
+  } else {
+    const angles = {'x-frame':[45,135,225,315], 'plus':[0,90,180,270], 'hex':[0,60,120,180,240,300], 'racer':[38,142,218,322]}[model];
+    angles.forEach(a => { const r = a*Math.PI/180; const arm = new THREE.Mesh(new THREE.CylinderGeometry(armR, armR*1.2, armLen, 8), mat); arm.rotation.z = Math.PI/2; arm.rotation.y = -r; arm.position.set(Math.cos(r)*armLen/2, 0, Math.sin(r)*armLen/2); g.add(arm); tips.push(new THREE.Vector3(Math.cos(r)*armLen, 0, Math.sin(r)*armLen)); });
+  }
+  const hub = new THREE.Mesh(chance(0.5) ? new THREE.BoxGeometry(hubW, hubH, hubW*rand(1,1.6)) : new THREE.CylinderGeometry(hubW*0.6, hubW*0.6, hubH, 12), mat); g.add(hub);
+  if (chance(0.6)) { const batt = new THREE.Mesh(new THREE.BoxGeometry(hubW*0.5, hubH*0.7, hubW*0.9), accent); batt.position.y = hubH*0.8; g.add(batt); }
+  if (chance(0.5)) { const camb = new THREE.Mesh(new THREE.SphereGeometry(hubW*0.22, 10, 8), accent); camb.position.set(0, -hubH*0.5, hubW*0.7); g.add(camb); }
+  const guard = chance(0.35), legs = chance(0.5), spinning = chance(0.5);
+  const propMat = new THREE.MeshStandardMaterial({color: ir ? 0x151515 : pick([0x111111,0x333333,0xe07020,0xeeeeee]), roughness: 0.5, transparent: spinning, opacity: spinning ? 0.35 : 1});
+  tips.forEach(t => {
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(rotorR*0.22, rotorR*0.22, armR*3, 10), accent); motor.position.copy(t); g.add(motor);
+    if (spinning) { const disc = new THREE.Mesh(new THREE.CircleGeometry(rotorR, 20), propMat); disc.rotation.x = -Math.PI/2; disc.position.copy(t).add(new THREE.Vector3(0, armR*1.8, 0)); g.add(disc); }
+    else { const ang = rand(0, Math.PI); [0, Math.PI/2].forEach(o => { const blade = new THREE.Mesh(new THREE.BoxGeometry(rotorR*2, armR*0.4, rotorR*0.22), propMat); blade.rotation.y = ang + o; blade.position.copy(t).add(new THREE.Vector3(0, armR*1.8, 0)); g.add(blade); }); }
+    if (guard) { const ring = new THREE.Mesh(new THREE.TorusGeometry(rotorR*1.12, armR*0.6, 6, 24), mat); ring.rotation.x = Math.PI/2; ring.position.copy(t); g.add(ring); }
+  });
+  if (legs) { const lh = rand(0.04, 0.1)*scale; [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz]) => { const leg = new THREE.Mesh(new THREE.CylinderGeometry(armR*0.5, armR*0.5, lh, 6), mat); leg.position.set(sx*hubW*0.5, -lh/2 - hubH/2, sz*hubW*0.5); g.add(leg); }); }
+  // LEDs: bright in IR (what the fish sees), coloured in visible light
+  const nLed = ir ? Math.max(1, Math.floor(rand(1, 5))) : Math.floor(rand(0, 4));
+  for (let i = 0; i < nLed; i++) {
+    const col = ir ? 0xffffff : pick([0xff3030, 0x30ff30, 0xffffff, 0x3080ff]);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(ir ? armR*2.4 : armR*1.1, 8, 6), new THREE.MeshBasicMaterial({color: col}));
+    const t = tips[i % tips.length]; led.position.copy(t).add(new THREE.Vector3(0, -armR*1.5, 0)); g.add(led);
+  }
+  g.userData.isDrone = true;
+  return g;
+}
+
+/* ---------- distractors ---------- */
+function makeDistractor(ir){
+  if (ir) { const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.01, 0.06), 8, 6), new THREE.MeshBasicMaterial({color: 0xffffff})); return m; }
+  const kind = pick(['bird','ball','box','pole']);
+  const mat = new THREE.MeshStandardMaterial({color: pick([0x111111,0x444444,0x886644,0xffffff,0xff9900,0x2244aa]), roughness: 0.8});
+  if (kind === 'bird') { const b = new THREE.Group(); const body = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat); body.scale.set(1, 0.5, 2.2); b.add(body); [-1,1].forEach(s => { const w = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.01, 0.07), mat); w.position.x = s*0.14; w.rotation.z = s*rand(0.1, 0.6); b.add(w); }); return b; }
+  if (kind === 'ball') return new THREE.Mesh(new THREE.SphereGeometry(rand(0.05, 0.3), 12, 10), mat);
+  if (kind === 'box') return new THREE.Mesh(new THREE.BoxGeometry(rand(0.1,0.6), rand(0.1,0.6), rand(0.1,0.6)), mat);
+  return new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, rand(1, 4), 8), mat);
+}
+
+/* ---------- background ---------- */
+function skyTexture(){
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d');
+  const top = `hsl(${rand(190,230)},${rand(30,80)}%,${rand(35,75)}%)`, bot = `hsl(${rand(180,240)},${rand(10,50)}%,${rand(70,95)}%)`;
+  const grad = g.createLinearGradient(0,0,0,256); grad.addColorStop(0, top); grad.addColorStop(1, bot); g.fillStyle = grad; g.fillRect(0,0,256,256);
+  if (chance(0.7)) { for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${rand(0.05,0.35)})`; g.beginPath(); g.ellipse(rand(0,256), rand(20,180), rand(10,60), rand(5,25), 0, 0, Math.PI*2); g.fill(); } }
+  if (chance(0.4)) { for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(${rand(0,80)},${rand(40,90)},${rand(0,60)},${rand(0.2,0.7)})`; g.fillRect(rand(0,256), rand(150,256), rand(1,6), rand(1,6)); } }
+  const t = new THREE.CanvasTexture(c); return t;
+}
+
+/* ---------- scene ---------- */
+function buildScene(opts){
+  const ir = opts.ir;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(rand(48, 70), W/H, 0.05, 60);
+  camera.position.set(0,0,0); camera.lookAt(0,0,-1); camera.updateMatrixWorld(true);
+  if (ir) { scene.background = new THREE.Color(0x000000); scene.add(new THREE.AmbientLight(0xffffff, rand(0.1, 0.45))); const dim = new THREE.DirectionalLight(0xffffff, rand(0.1, 0.5)); dim.position.set(rand(-3,3), rand(1,5), rand(-2,2)); scene.add(dim); }
+  else {
+    scene.background = chance(0.85) ? skyTexture() : new THREE.Color().setHSL(rng(), rand(0.1,0.6), rand(0.2,0.9));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x556677, rand(0.4, 1.0)));
+    const sun = new THREE.DirectionalLight(0xffffff, rand(0.3, 1.2)); sun.position.set(rand(-5,5), rand(2,8), rand(-5,5)); scene.add(sun);
+    if (chance(0.3)) { const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({color: pick([0x3a6a2a, 0x777777, 0x8a7a5a]), roughness: 1})); ground.rotation.x = -Math.PI/2; ground.position.y = rand(-4, -1.5); scene.add(ground); }
+  }
+  const drones = [];
+  const n = opts.empty ? 0 : Math.floor(rand(1, opts.maxDrones + 1));
+  const tanH = Math.tan(camera.fov*Math.PI/360), aspect = W/H;
+  for (let i = 0; i < n; i++) {
+    const d = makeDrone(pick(MODELS), ir);
+    const dist = rand(0.8, ir ? 8 : 14);
+    const y = rand(-0.9, 0.9) * tanH * dist, x = rand(-0.9, 0.9) * tanH * aspect * dist;
+    d.position.set(x, y, -dist);
+    d.rotation.set(rand(-0.5, 0.5) + (chance(0.15) ? rand(-1.5,1.5) : 0), rand(0, Math.PI*2), rand(-0.5, 0.5));
+    scene.add(d); drones.push(d);
+  }
+  // distractors sit behind every drone so a labelled drone is never hidden by one
+  const farthest = drones.reduce((m, d) => Math.max(m, -d.position.z), 0.5);
+  if (chance(opts.dis)) { const m = Math.floor(rand(1, 5)); for (let i = 0; i < m; i++) { const o = makeDistractor(ir); const dist = rand(farthest + 1.0, farthest + 12); o.position.set(rand(-1,1)*tanH*aspect*dist, rand(-1,1)*tanH*dist, -dist); o.rotation.set(rand(0,6), rand(0,6), rand(0,6)); scene.add(o); } }
+  return {scene, camera, drones};
+}
+
+/* ---------- labels from projected vertices ---------- */
+function boxOf(obj, camera){
+  obj.updateMatrixWorld(true);
+  let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9, n = 0;
+  const v = new THREE.Vector3(), inv = camera.matrixWorldInverse;
+  obj.traverse(m => {
+    if (!m.isMesh) return;
+    const pos = m.geometry.attributes.position; if (!pos) return;
+    const step = Math.max(1, Math.floor(pos.count / 200));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+      const cz = v.clone().applyMatrix4(inv).z; if (cz > -0.05) continue;
+      v.project(camera);
+      const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H;
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; n++;
+    }
+  });
+  if (!n) return null;
+  const full = (maxx - minx) * (maxy - miny);
+  const cx1 = Math.max(0, minx), cy1 = Math.max(0, miny), cx2 = Math.min(W, maxx), cy2 = Math.min(H, maxy);
+  if (cx2 - cx1 < 6 || cy2 - cy1 < 6) return null;
+  if ((cx2 - cx1) * (cy2 - cy1) < 0.4 * full) return null;   // mostly outside the frame
+  return [cx1, cy1, cx2, cy2];
+}
+
+/* ---------- IR post-process: grayscale, dim body, bloom on bright LEDs, sensor noise ---------- */
+function postIR(){
+  ctx.filter = 'none'; ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(gl, 0, 0);
+  const img = ctx.getImageData(0, 0, W, H), p = img.data;
+  const gain = rand(0.6, 1.1), noise = rand(4, 18);
+  for (let i = 0; i < p.length; i += 4) {
+    let g = (0.3*p[i] + 0.59*p[i+1] + 0.11*p[i+2]) * gain;
+    g += (Math.random() - 0.5) * noise + 8;
+    p[i] = p[i+1] = p[i+2] = Math.max(0, Math.min(255, g));
+  }
+  ctx.putImageData(img, 0, 0);
+  // bloom: blur the bright pixels and add them back
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H; const t = tmp.getContext('2d');
+  t.drawImage(out, 0, 0); const d = t.getImageData(0, 0, W, H), q = d.data;
+  for (let i = 0; i < q.length; i += 4) { const v = q[i] > 140 ? q[i] : 0; q[i] = q[i+1] = q[i+2] = v; }
+  t.putImageData(d, 0, 0);
+  ctx.globalCompositeOperation = 'lighter'; ctx.filter = 'blur(' + rand(2, 5).toFixed(1) + 'px)'; ctx.drawImage(tmp, 0, 0); ctx.drawImage(tmp, 0, 0);
+  ctx.filter = 'none'; ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- one sample ---------- */
+function renderSample(){
+  const ir = chance(+$('ir').value / 100);
+  const {scene, camera, drones} = buildScene({ir, empty: chance(+$('empty').value / 100), maxDrones: +$('maxd').value, dis: +$('dis').value / 100});
+  renderer.render(scene, camera);
+  if (ir) postIR(); else { ctx.filter = 'none'; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(gl, 0, 0); if (chance(0.3)) { ctx.filter = 'blur(' + rand(0.5, 1.5).toFixed(1) + 'px)'; ctx.drawImage(out, 0, 0); ctx.filter = 'none'; } }
+  const boxes = drones.map(d => boxOf(d, camera)).filter(Boolean);
+  scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
+  if (scene.background && scene.background.dispose) scene.background.dispose();
+  const label = boxes.map(([x1,y1,x2,y2]) => '0 ' + ((x1+x2)/2/W).toFixed(6) + ' ' + ((y1+y2)/2/H).toFixed(6) + ' ' + ((x2-x1)/W).toFixed(6) + ' ' + ((y2-y1)/H).toFixed(6)).join('\n');
+  return {ir, boxes, label, drones: drones.length};
+}
+function drawBoxes(boxes){ const svg = $('boxes'); svg.replaceChildren(); boxes.forEach(([x1,y1,x2,y2]) => { const r = document.createElementNS('http://www.w3.org/2000/svg','rect'); r.setAttribute('x',x1); r.setAttribute('y',y1); r.setAttribute('width',x2-x1); r.setAttribute('height',y2-y1); svg.appendChild(r); }); }
+
+/* ---------- server ---------- */
+let serverOk = false;
+fetch('/stats').then(r => r.json()).then(j => { serverOk = true; $('server').textContent = 'Save server ready. Dataset: ' + j.out + ' (' + j.train + ' train, ' + j.val + ' val so far).'; $('server').className = 'ok'; }).catch(() => { $('server').textContent = 'No save server: open this page via python tools/synth/server.py to write files. Preview still works.'; $('server').className = 'err'; });
+
+/* ---------- controls ---------- */
+$('btn-preview').addEventListener('click', () => { setSize(); rng = mulberry32(+$('seed').value + Math.floor(Math.random()*1e6)); const s = renderSample(); drawBoxes(s.boxes); $('prev-info').textContent = (s.ir ? 'IR-style' : 'visible') + ', ' + s.drones + ' drone(s), ' + s.boxes.length + ' label(s)'; });
+let running = false;
+$('btn-stop').addEventListener('click', () => { running = false; });
+$('btn-start').addEventListener('click', async () => {
+  if (!serverOk) { $('status').textContent = 'Start the save server first: python tools/synth/server.py'; $('status').className = 'err'; return; }
+  setSize(); rng = mulberry32(+$('seed').value);
+  const total = +$('count').value, valShare = +$('val').value / 100;
+  running = true; $('btn-start').disabled = true; $('btn-stop').disabled = false; $('status').className = '';
+  let saved = 0, labels = 0, irN = 0, failed = 0;
+  const t0 = performance.now();
+  for (let i = 0; i < total && running; i++) {
+    const s = renderSample();
+    drawBoxes(s.boxes);
+    const split = rng() < valShare ? 'val' : 'train';
+    const name = 'synth_' + $('seed').value + '_' + String(i).padStart(6, '0');
+    const jpeg = out.toDataURL('image/jpeg', 0.9).split(',')[1];
+    try {
+      const r = await fetch('/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, split, jpeg, label: s.label})});
+      if (!r.ok) throw new Error(await r.text());
+      saved++; labels += s.boxes.length; if (s.ir) irN++;
+    } catch (e) { failed++; if (failed > 20) { running = false; $('status').textContent = 'Stopped: the save server keeps failing (' + e + ').'; $('status').className = 'err'; } }
+    $('prog').value = (i + 1) / total;
+    if (i % 5 === 0 || i === total - 1) $('status').textContent = 'Saved ' + saved + ' of ' + total + ' (' + labels + ' labels, ' + irN + ' IR-style, ' + failed + ' failed), ' + ((performance.now() - t0) / 1000).toFixed(0) + ' s.';
+  }
+  $('btn-start').disabled = false; $('btn-stop').disabled = true;
+  if (running) $('status').textContent += ' Done. Next: python tools/train_quads.py';
+  running = false;
+});
+setSize();
+const qs = new URLSearchParams(location.search);
+if (qs.get('auto')) { setTimeout(() => { $('seed').value = qs.get('auto'); $('btn-preview').click(); document.body.dataset.rendered = '1'; if (qs.get('run')) { $('count').value = qs.get('run'); setTimeout(() => $('btn-start').click(), 800); } }, 300); }
+})();
+</script>
+</body>
+</html>
