@@ -1,0 +1,50 @@
+# ---- macOS ----
+.DS_Store
+._*
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# virtualenvs (root and light_tracker/laptop)
+.venv/
+venv/
+env/
+
+# ---- Secrets / local config ----
+.env
+.env.*
+*.local
+
+# ---- Model weights (YOLO --yolo weights.pt) ----
+*.pt
+*.pth
+*.onnx
+
+# ---- Flight logs / recordings exported by the GCS ----
+logs/
+*.log
+flight_*.json
+flight_*.csv
+
+# ---- Arduino / ESP32 build output ----
+build/
+*.bin
+*.elf
+*.hex
+*.map
+.pio/
+# Arduino IDE 2 puts these next to sketches
+**/*.ino.*
+!**/*.ino
+
+# ---- Editors ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

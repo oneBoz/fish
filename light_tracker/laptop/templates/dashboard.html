@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Light Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0e1116; --panel:#171b22; --line:#262c36; --fg:#e6e8eb; --dim:#8b949e;
+          --acc:#ff8c1a; --ok:#3fb950; --bad:#f85149; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,sans-serif; }
+  header { padding:12px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; letter-spacing:.04em; }
+  .pill { font-family:var(--mono); font-size:12px; padding:3px 9px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
+  .pill.ok { color:var(--ok); border-color:var(--ok); } .pill.bad { color:var(--bad); border-color:var(--bad); }
+  main { display:grid; grid-template-columns: minmax(0,2fr) minmax(320px,1fr); gap:16px; padding:16px 20px; }
+  @media (max-width:900px){ main{grid-template-columns:1fr;} }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); margin:0 0 10px; }
+  #feed { width:100%; display:block; border-radius:6px; background:#000; aspect-ratio:4/3; object-fit:contain; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; font-family:var(--mono); font-size:13px; }
+  .grid .k { color:var(--dim); } .grid .v { text-align:right; }
+  .v.hi { color:var(--acc); }
+  .stack { display:flex; flex-direction:column; gap:14px; }
+  .bar { position:relative; height:10px; background:var(--line); border-radius:5px; margin:4px 0 8px; }
+  .bar i { position:absolute; top:-3px; width:4px; height:16px; background:var(--acc); border-radius:2px; transform:translateX(-50%); }
+  .bar b { position:absolute; left:50%; top:0; width:1px; height:100%; background:var(--dim); }
+  label { display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-top:8px; }
+  input[type=range] { width:100%; accent-color:var(--acc); }
+  button { background:var(--line); color:var(--fg); border:1px solid #3a4250; padding:7px 12px; border-radius:6px; cursor:pointer; font-size:13px; }
+  button.on { background:var(--acc); color:#000; border-color:var(--acc); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .eq { font-family:var(--mono); font-size:11.5px; color:var(--dim); background:#0b0e12; padding:8px 10px; border-radius:6px; white-space:pre; overflow-x:auto; }
+  #feed.swarm { cursor:crosshair; }
+  .swarms { display:flex; flex-direction:column; gap:4px; font-family:var(--mono); font-size:12px; margin-top:8px; }
+  .swarm { display:flex; justify-content:space-between; gap:8px; padding:5px 8px; border:1px solid var(--line); border-radius:6px; cursor:pointer; color:var(--dim); }
+  .swarm:hover { border-color:#3a4250; color:var(--fg); }
+  .swarm.sel { border-color:#e03cc8; color:#ff6ee0; background:#1d1420; }
+  .swarm .id { font-weight:600; }
+  .hint { font-size:11px; color:var(--dim); margin-top:6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LIGHT SOURCE TRACKER</h1>
+  <span class="pill" id="p-cam">cam —</span>
+  <span class="pill" id="p-servo">servo —</span>
+  <span class="pill" id="p-fps">— fps</span>
+</header>
+
+<main>
+  <div class="stack">
+    <div class="panel">
+      <h2>Live stream · annotated</h2>
+      <img id="feed" src="/video_feed" alt="stream">
+    </div>
+    <div class="panel">
+      <h2>Calculation trace</h2>
+      <div class="eq" id="eq">waiting for frames…</div>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="panel">
+      <h2>Target</h2>
+      <div class="grid">
+        <span class="k">status</span><span class="v" id="t-found">—</span>
+        <span class="k">method</span><span class="v" id="t-method">—</span>
+        <span class="k">spot x, y</span><span class="v hi" id="t-xy">—</span>
+        <span class="k">peak brightness</span><span class="v" id="t-val">—</span>
+        <span class="k">background / contrast</span><span class="v" id="t-bg">—</span>
+        <span class="k">cutoff used</span><span class="v hi" id="t-cut">—</span>
+        <span class="k">blob area px²</span><span class="v" id="t-area">—</span>
+        <span class="k">target mode</span><span class="v" id="t-mode">—</span>
+        <span class="k">light sources</span><span class="v hi" id="t-n">—</span>
+        <span class="k">swarm spread px</span><span class="v" id="t-spread">—</span>
+        <span class="k">following swarm</span><span class="v hi" id="t-swarm">—</span>
+        <span class="k">candidates</span><span class="v" id="t-cands" style="white-space:pre;font-size:11px">—</span>
+      </div>
+    </div>
+
+    <div class="panel" id="swarm-panel" style="display:none">
+      <h2>Swarms · pick which one to follow</h2>
+      <div class="row">
+        <button onclick="swarm({action:'prev'})">◀ prev swarm</button>
+        <button onclick="swarm({action:'next'})">next swarm ▶</button>
+      </div>
+      <div class="swarms" id="swarm-list">—</div>
+      <div class="hint">click a row, click a swarm on the stream, or press N / P. Swarms are grouped by <b>cluster radius</b>; lost swarms are held for a few frames before falling back to the biggest.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Error → correction</h2>
+      <div class="grid">
+        <span class="k">ex / ey (px)</span><span class="v" id="e-px">—</span>
+        <span class="k">ex / ey (norm)</span><span class="v" id="e-norm">—</span>
+        <span class="k">|error| px</span><span class="v" id="e-mag">—</span>
+        <span class="k">Δpan / Δtilt (°)</span><span class="v hi" id="e-d">—</span>
+        <span class="k">deadband</span><span class="v" id="e-db">—</span>
+      </div>
+      <label><span>horizontal error</span></label><div class="bar"><b></b><i id="bx" style="left:50%"></i></div>
+      <label><span>vertical error</span></label><div class="bar"><b></b><i id="by" style="left:50%"></i></div>
+    </div>
+
+    <div class="panel">
+      <h2 id="h-servo">Servo command</h2>
+      <div class="grid">
+        <span class="k" id="k-a">pan</span><span class="v hi" id="s-pan">—</span>
+        <span class="k" id="k-b">tilt</span><span class="v hi" id="s-tilt">—</span>
+        <span class="k">packets sent / acked</span><span class="v" id="s-pk">—</span>
+        <span class="k">round-trip</span><span class="v" id="s-rtt">—</span>
+        <span class="k">last ACK</span><span class="v" id="s-ack">—</span>
+      </div>
+      <label><span id="l-pan-range">pan</span></label><div class="bar"><b></b><i id="bp" style="left:50%"></i></div>
+      <label><span id="l-tilt-range">tilt</span></label><div class="bar"><b></b><i id="bt" style="left:50%"></i></div>
+    </div>
+
+    <div class="panel">
+      <h2>Tuning</h2>
+      <div class="row">
+        <button id="btn-track" class="on" onclick="toggle('tracking')">tracking ON</button>
+        <button id="btn-mask" onclick="toggle('show_mask')">mask overlay</button>
+        <button id="btn-mode" onclick="post({mode: cfg.mode==='swarm'?'single':'swarm'})">mode: single</button>
+        <button id="btn-home" onclick="fetch('/home',{method:'POST'})">home servos</button>
+        <button id="btn-thr" onclick="post({thresh_mode: cfg.thresh_mode==='relative'?'absolute':'relative'})">cutoff: relative</button>
+      </div>
+      <label><span>relative threshold (fraction background→peak)</span><span id="l-rel_threshold"></span></label>
+      <input type="range" min="0.1" max="0.95" step="0.05" data-k="rel_threshold">
+      <label><span>min contrast (peak − background, else no target)</span><span id="l-min_contrast"></span></label>
+      <input type="range" min="5" max="150" step="5" data-k="min_contrast">
+      <label><span>absolute threshold (absolute mode only)</span><span id="l-threshold"></span></label>
+      <input type="range" min="20" max="255" step="1" data-k="threshold">
+      <label><span>min blob area px</span><span id="l-min_area"></span></label>
+      <input type="range" min="1" max="60" step="1" data-k="min_area">
+      <label><span>blur kernel</span><span id="l-blur"></span></label>
+      <input type="range" min="1" max="41" step="2" data-k="blur">
+      <label><span>lock radius px (sticky, single mode)</span><span id="l-lock_radius"></span></label>
+      <input type="range" min="0" max="150" step="5" data-k="lock_radius">
+      <label><span>cluster radius px (swarm mode, 0 = one swarm)</span><span id="l-cluster_radius"></span></label>
+      <input type="range" min="0" max="200" step="5" data-k="cluster_radius">
+      <label><span>swarm match px/frame (keeps IDs)</span><span id="l-swarm_match"></span></label>
+      <input type="range" min="10" max="200" step="5" data-k="swarm_match">
+      <label><span>Kp</span><span id="l-kp"></span></label>
+      <input type="range" min="0" max="1.5" step="0.05" data-k="kp">
+      <label><span>Ki</span><span id="l-ki"></span></label>
+      <input type="range" min="0" max="0.5" step="0.01" data-k="ki">
+      <label><span>deadband px</span><span id="l-deadband"></span></label>
+      <input type="range" min="0" max="40" step="1" data-k="deadband">
+      <label><span>max step °/frame</span><span id="l-max_step"></span></label>
+      <input type="range" min="1" max="20" step="0.5" data-k="max_step">
+      <label><span>fin max deflection ° (fins output)</span><span id="l-fin_max"></span></label>
+      <input type="range" min="5" max="45" step="1" data-k="fin_max">
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let cfg = {};
+let slidersInit = false;
+
+function post(obj){ return fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}); }
+function toggle(k){ post({[k]: !cfg[k]}); }
+function swarm(obj){ return fetch('/swarm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}); }
+
+let frameSize = null;   // {w,h} of the camera frame, for click -> pixel mapping
+
+// Click on the stream: map the click back to camera pixels (the <img> is
+// object-fit:contain, so account for letterboxing) and select the nearest swarm.
+$('feed').addEventListener('click', ev => {
+  if(cfg.mode !== 'swarm' || !frameSize) return;
+  const r = ev.currentTarget.getBoundingClientRect();
+  const scale = Math.min(r.width/frameSize.w, r.height/frameSize.h);
+  const ox = (r.width - frameSize.w*scale)/2, oy = (r.height - frameSize.h*scale)/2;
+  const x = (ev.clientX - r.left - ox)/scale, y = (ev.clientY - r.top - oy)/scale;
+  if(x < 0 || y < 0 || x > frameSize.w || y > frameSize.h) return;
+  swarm({x, y});
+});
+
+document.addEventListener('keydown', ev => {
+  if(ev.target.tagName === 'INPUT') return;
+  if(ev.key === 'n' || ev.key === 'N') swarm({action:'next'});
+  if(ev.key === 'p' || ev.key === 'P') swarm({action:'prev'});
+});
+
+let lastSwarmKey = '';
+function renderSwarms(s){
+  const list = s.swarms || [];
+  const key = list.map(w => `${w.id}:${w.selected?1:0}:${w.n}`).join('|');
+  if(key === lastSwarmKey) return;      // avoid re-rendering (and killing hover) every 100 ms
+  lastSwarmKey = key;
+  const el = $('swarm-list');
+  if(!list.length){ el.textContent = 'no swarms'; return; }
+  el.innerHTML = list.map(w =>
+    `<div class="swarm ${w.selected?'sel':''}" onclick="swarm({id:${w.id}})">
+       <span class="id">S${w.id}</span>
+       <span>${w.n} src</span><span>mass ${w.mass}</span><span>r ${fmt(w.spread,0)}px</span>
+       <span>(${fmt(w.x,0)},${fmt(w.y,0)})</span>
+     </div>`).join('');
+}
+
+document.querySelectorAll('input[type=range]').forEach(r=>{
+  r.addEventListener('input', ()=>{ $('l-'+r.dataset.k).textContent=r.value; post({[r.dataset.k]: parseFloat(r.value)}); });
+});
+
+function fmt(v,d=1){ return (v==null)?'—':Number(v).toFixed(d); }
+
+async function poll(){
+  try{
+    const t = await (await fetch('/telemetry')).json();
+    if(!t.frame){ return; }
+    cfg = t.cfg;
+    const f=t.frame, s=t.spot, e=t.error||{}, sv=t.servo;
+    frameSize = {w:f.w, h:f.h};
+
+    $('p-cam').textContent = f.cam_connected?`cam ${f.cam_fps} fps`:'cam offline';
+    $('p-cam').className = 'pill '+(f.cam_connected?'ok':'bad');
+    $('p-servo').textContent = sv.alive?`servo link ok`:'servo no ack';
+    $('p-servo').className = 'pill '+(sv.alive?'ok':'bad');
+    $('p-fps').textContent = `${f.proc_fps} fps · cv ${f.cv_ms} ms`;
+
+    const holding = s.method==='swarm-hold';
+    $('t-found').textContent = s.found?'LOCKED':(holding?'HOLD (swarm lost)':'no target');
+    $('t-found').style.color = s.found?'var(--ok)':(holding?'var(--acc)':'var(--bad)');
+    $('t-method').textContent = s.method;
+    $('t-xy').textContent = s.found?`${fmt(s.x)}, ${fmt(s.y)}`:'—';
+    $('t-val').textContent = `${fmt(s.max_val,0)} / 255`;
+    $('t-bg').textContent = `${fmt(s.background,0)} / ${fmt(s.contrast,0)}`;
+    $('t-cut').textContent = `${fmt(s.cutoff,0)} (${s.thresh_mode||'—'})`;
+    $('t-area').textContent = fmt(s.area,0);
+    $('t-n').textContent = s.n_sources ?? 0;
+    $('t-mode').textContent = s.mode==='swarm' ? `swarm (${(s.swarms||[]).length} found)` : 'single (one light)';
+    $('t-spread').textContent = s.mode==='swarm' ? fmt(s.spread,0) : '—';
+    $('t-swarm').textContent = s.mode==='swarm' && s.swarm_id!=null ? `S${s.swarm_id}` : '—';
+    $('swarm-panel').style.display = s.mode==='swarm' ? '' : 'none';
+    $('feed').className = s.mode==='swarm' ? 'swarm' : '';
+    if(s.mode==='swarm') renderSwarms(s);
+    $('t-cands').textContent = (s.candidates||[]).length
+      ? s.candidates.map((c,i)=>`${i}: (${fmt(c.x,0)},${fmt(c.y,0)}) peak ${fmt(c.peak,0)} area ${fmt(c.area,0)}`).join('\n')
+      : '—';
+
+    $('e-px').textContent = `${fmt(e.ex_px)} / ${fmt(e.ey_px)}`;
+    $('e-norm').textContent = `${fmt(e.ex_norm,3)} / ${fmt(e.ey_norm,3)}`;
+    $('e-mag').textContent = fmt(e.err_px);
+    $('e-d').textContent = `${fmt(e.dpan,2)} / ${fmt(e.dtilt,2)}`;
+    $('e-db').textContent = e.in_deadband?'inside (hold)':'outside (move)';
+    $('bx').style.left = (50 + 50*(e.ex_norm||0))+'%';
+    $('by').style.left = (50 + 50*(e.ey_norm||0))+'%';
+
+    $('s-pan').textContent = fmt(sv.pan)+'°';
+    $('s-tilt').textContent = fmt(sv.tilt)+'°';
+    $('s-pk').textContent = `${sv.sent} / ${sv.acks}`;
+    $('s-rtt').textContent = sv.rtt_ms==null?'—':fmt(sv.rtt_ms)+' ms';
+    $('s-ack').textContent = sv.last_ack||'—';
+    const pr = sv.pan_range||[0,180], tr = sv.tilt_range||[0,180];
+    const fins = sv.output==='fins';
+    const lab = sv.labels||['pan','tilt'];
+    $('k-a').textContent = lab[0]; $('k-b').textContent = lab[1];
+    $('h-servo').textContent = fins ? 'Fin command' : 'Servo command';
+    $('btn-home').textContent = fins ? 'fins neutral' : 'home servos';
+    $('l-pan-range').textContent = `${lab[0]} ${pr[0]}–${pr[1]}`;
+    $('l-tilt-range').textContent = `${lab[1]} ${tr[0]}–${tr[1]}`;
+    $('bp').style.left = ((sv.pan-pr[0])/(pr[1]-pr[0])*100)+'%';
+    $('bt').style.left = ((sv.tilt-tr[0])/(tr[1]-tr[0])*100)+'%';
+
+    $('btn-track').className = cfg.tracking?'on':'';
+    $('btn-track').textContent = cfg.tracking?'tracking ON':'tracking OFF';
+    $('btn-mask').className = cfg.show_mask?'on':'';
+    $('btn-mode').className = cfg.mode==='swarm'?'on':'';
+    $('btn-mode').textContent = 'mode: '+cfg.mode;
+    $('btn-thr').className = cfg.thresh_mode==='relative'?'on':'';
+    $('btn-thr').textContent = 'cutoff: '+cfg.thresh_mode;
+
+    if(!slidersInit){
+      document.querySelectorAll('input[type=range]').forEach(r=>{ r.value=cfg[r.dataset.k]; $('l-'+r.dataset.k).textContent=cfg[r.dataset.k]; });
+      slidersInit = true;
+    }
+
+    const cx=f.w/2, cy=f.h/2;
+    $('eq').textContent =
+`gray    = cvtColor(frame, BGR2GRAY)
+blur    = GaussianBlur(gray, ${cfg.blur}x${cfg.blur})
+peak    = minMaxLoc(blur)           -> ${fmt(s.max_val,0)}
+bg      = median(blur)              -> ${fmt(s.background,0)}   contrast = peak - bg = ${fmt(s.contrast,0)}${s.thresh_mode==='relative' ? ' '+(s.contrast>=cfg.min_contrast?'>= '+cfg.min_contrast+' ✓ lit':'< '+cfg.min_contrast+' ✗ empty') : ''}
+cutoff  = ${s.thresh_mode==='relative' ? 'bg + '+cfg.rel_threshold+' · contrast' : 'absolute '+cfg.threshold}  -> ${fmt(s.cutoff,0)}
+mask    = blur > ${fmt(s.cutoff,0)}, blobs >= ${cfg.min_area} px  -> ${s.n_sources||0} source(s)
+${s.mode==='swarm' ? 'swarms  = link sources < '+cfg.cluster_radius+' px apart -> '+(s.swarms||[]).length+' swarm(s), IDs matched within '+cfg.swarm_match+' px of last frame\n' : ''}target  = ${s.mode==='swarm' ? (holding ? 'S'+s.swarm_id+' not visible -> hold position' : 'S'+s.swarm_id+': Σ(mass·xy)/Σmass over its '+(s.n_sources||0)+' source(s)  (spread '+fmt(s.spread,0)+' px)') : (s.method==='blob-sticky'?'nearest to last target (< '+cfg.lock_radius+' px)':'brightest source')} -> (${fmt(s.x)}, ${fmt(s.y)})
+
+ex      = x - W/2 = ${fmt(s.x)} - ${cx} = ${fmt(e.ex_px)} px   -> ex_norm = ${fmt(e.ex_norm,3)}
+ey      = y - H/2 = ${fmt(s.y)} - ${cy} = ${fmt(e.ey_px)} px   -> ey_norm = ${fmt(e.ey_norm,3)}
+
+${fins ? `yaw     =  (Kp·ex_norm + Ki·∫ex) · fin_max = ${fmt(e.dpan,2)}°   (spot right -> yaw right)
+pitch   = -(Kp·ey_norm + Ki·∫ey) · fin_max = ${fmt(e.dtilt,2)}°   (spot below -> pitch down)
+yaw fin   = slew(yaw,   ±${cfg.max_step}°/frame), clip ±${cfg.fin_max}  = ${fmt(sv.pan)}°
+pitch fin = slew(pitch, ±${cfg.max_step}°/frame), clip ±${cfg.fin_max}  = ${fmt(sv.tilt)}°
+UDP  →  "${fmt(sv.pan)},${fmt(sv.tilt)}"  to fin board   ${sv.alive?'ACK '+(sv.rtt_ms?fmt(sv.rtt_ms)+' ms':''):'(no ack)'}`
+: `Δpan    = (Kp·ex_norm + Ki·∫ex) · HFOV/2 = ${fmt(e.dpan,2)}°
+Δtilt   = -(Kp·ey_norm + Ki·∫ey) · VFOV/2 = ${fmt(e.dtilt,2)}°
+pan     = clip(pan + Δpan, ${pr[0]}, ${pr[1]})  = ${fmt(sv.pan)}°
+tilt    = clip(tilt + Δtilt, ${tr[0]}, ${tr[1]}) = ${fmt(sv.tilt)}°
+UDP  →  "${fmt(sv.pan)},${fmt(sv.tilt)}"   ${sv.alive?'ACK '+(sv.rtt_ms?fmt(sv.rtt_ms)+' ms':''):'(no ack)'}`}`;
+  }catch(err){ /* server not ready yet */ }
+}
+setInterval(poll, 100);
+</script>
+</body>
+</html>

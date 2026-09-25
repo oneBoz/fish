@@ -1,0 +1,7 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+opencv-python>=4.8
+numpy>=1.24
+requests>=2.31
+# optional, only if you pass --yolo <weights.pt>:
+# ultralytics>=8.2

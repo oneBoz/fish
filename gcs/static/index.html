@@ -1,0 +1,1031 @@
+<title>Fish Flight Deck</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#F2F5F8; --surface:#FFFFFF; --surface-2:#E9EEF3; --ink:#12202C; --muted:#55667A;
+  --line:#CBD5E0; --line-strong:#75879B; --accent:#0B6E8E; --accent-ink:#FFFFFF; --focus:#0B6E8E;
+  --imu:#2a78d6; --cv:#eb6834; --imu-wash:rgba(42,120,214,.12); --cv-wash:rgba(235,104,52,.14);
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b; --crit-ink:#FFFFFF;
+  --good-text:#0B6B0B; --warn-text:#7A4E00; --crit-text:#A72C2C;
+  --font-ui:'Atkinson Hyperlegible',system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --radius:6px; --bw:1px; --shadow:0 1px 2px rgba(18,32,44,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0D141B; --surface:#172230; --surface-2:#1F2D3B; --ink:#E9EFF4; --muted:#9DACBB;
+    --line:#2A3846; --line-strong:#6B7F94; --accent:#5EC6E4; --accent-ink:#0D141B; --focus:#5EC6E4;
+    --imu:#3987e5; --cv:#d95926; --imu-wash:rgba(57,135,229,.18); --cv-wash:rgba(217,89,38,.2);
+    --good-text:#5FD35F; --warn-text:#FAC94F; --crit-text:#F07B7B; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0D141B; --surface:#172230; --surface-2:#1F2D3B; --ink:#E9EFF4; --muted:#9DACBB;
+  --line:#2A3846; --line-strong:#6B7F94; --accent:#5EC6E4; --accent-ink:#0D141B; --focus:#5EC6E4;
+  --imu:#3987e5; --cv:#d95926; --imu-wash:rgba(57,135,229,.18); --cv-wash:rgba(217,89,38,.2);
+  --good-text:#5FD35F; --warn-text:#FAC94F; --crit-text:#F07B7B; --shadow:none;
+}
+:root[data-contrast="high"]{ --line:var(--line-strong); --bw:2px; --muted:var(--ink); }
+
+*{box-sizing:border-box}
+html{height:100%}
+body{margin:0;min-height:100%;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:1rem;line-height:1.45;
+  padding-inline:16px;padding-block:0 24px}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font-size:1.05rem;font-weight:700}
+h3{font-size:.95rem;font-weight:700}
+p{margin:0}
+button,input,select,output{font:inherit;color:inherit}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.skip{position:absolute;left:16px;top:-3rem;background:var(--accent);color:var(--accent-ink);padding:.5rem .75rem;border-radius:var(--radius);z-index:50;font-weight:700}
+.skip:focus{top:8px}
+
+/* ---- top bar ---- */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:var(--bw) solid var(--line);
+  margin-inline:-16px;padding:.5rem 16px;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem}
+.brand{display:flex;flex-direction:column;min-width:8rem}
+.brand-name{font-weight:700;font-size:1.15rem;letter-spacing:.01em}
+.brand-sub{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.links{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.4rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;border:var(--bw) solid var(--line);border-radius:999px;padding:.3rem .7rem;font-size:.85rem;background:var(--surface-2);min-height:2rem}
+.pill .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--muted);flex:none}
+.pill.ok .dot{background:var(--good)} .pill.slow .dot{background:var(--warn)} .pill.lost .dot{background:var(--crit)}
+.pill-k{color:var(--muted)}
+.phase-now{display:inline-flex;align-items:center;gap:.5rem;font-weight:700;padding:.35rem .8rem;border-radius:var(--radius);border:var(--bw) solid var(--line);min-height:2.4rem}
+.phase-now.imu{background:var(--imu-wash);border-color:var(--imu)} .phase-now.cv{background:var(--cv-wash);border-color:var(--cv)}
+.phase-now.good{border-color:var(--good)} .phase-now.crit{border-color:var(--crit)}
+.phase-icon{font-family:var(--font-mono);width:1.4rem;text-align:center}
+.clock{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:600;min-width:7.5rem}
+.topbar-actions{margin-left:auto;display:flex;gap:.5rem;align-items:center}
+
+/* ---- buttons ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;min-width:44px;padding:.5rem 1rem;border-radius:var(--radius);
+  border:var(--bw) solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;font-weight:700;text-align:center}
+.btn:hover:not(:disabled){background:var(--surface-2)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08)}
+.btn.ghost{border-color:var(--line)}
+.btn.abort{background:var(--crit);color:var(--crit-ink);border-color:transparent;min-height:56px;padding-inline:1.6rem;font-size:1.1rem;letter-spacing:.06em}
+.btn.abort:hover:not(:disabled){filter:brightness(1.1)}
+.btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.warnbtn{border-color:var(--warn-text);color:var(--warn-text)}
+.btn-row{display:flex;flex-wrap:wrap;gap:.5rem}
+.xyz{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.xyz input{min-height:44px;padding:.4rem .5rem;border:var(--bw) solid var(--line-strong);border-radius:var(--radius);background:var(--surface);width:100%}
+.cue{display:flex;align-items:center;gap:.75rem;flex-basis:100%;padding:.5rem .75rem;border-radius:var(--radius);border:2px solid var(--accent);background:var(--surface-2);font-weight:700;font-size:1.05rem}
+.cue.imu{border-color:var(--imu)} .cue.cv{border-color:var(--cv)} .cue.crit{border-color:var(--crit)} .cue.good{border-color:var(--good)} .cue.warn{border-color:var(--warn-text)}
+.cue-ic{font-family:var(--font-mono);font-size:1.3rem}
+.cue-count{font-size:2rem;line-height:1;min-width:2.4rem;text-align:center}
+.cue .btn{margin-left:auto}
+
+/* ---- layout ---- */
+.jump{display:flex;flex-wrap:wrap;gap:.25rem 1rem;padding:.5rem 0;font-size:.9rem}
+.jump a{color:var(--accent);min-height:44px;display:inline-flex;align-items:center}
+.deck{display:grid;gap:1rem;grid-template-columns:minmax(280px,330px) minmax(0,1fr) minmax(300px,360px);
+  grid-template-areas:"mission view vision" "guidance view fins" "guidance charts fins" "log log log";align-items:start}
+.panel{background:var(--surface);border:var(--bw) solid var(--line);border-radius:8px;padding:1rem;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:.9rem;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+.panel-head .sub{font-size:.8rem;color:var(--muted)}
+#sec-mission{grid-area:mission} #sec-guidance{grid-area:guidance} #sec-view{grid-area:view} #sec-charts{grid-area:charts}
+#sec-vision{grid-area:vision} #sec-fins{grid-area:fins} #sec-log{grid-area:log}
+@media (max-width:1100px){ .deck{grid-template-columns:1fr;grid-template-areas:"guidance" "view" "vision" "fins" "charts" "mission" "log"} }
+
+/* ---- form bits ---- */
+fieldset{border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.75rem;margin:0;display:flex;flex-direction:column;gap:.6rem;min-width:0}
+legend{font-weight:700;padding:0 .3rem}
+.field{display:flex;flex-direction:column;gap:.25rem}
+.field label{font-size:.9rem}
+.field input[type=text],.field input[type=number],.field select{min-height:44px;padding:.4rem .6rem;border:var(--bw) solid var(--line-strong);border-radius:var(--radius);background:var(--surface);width:100%;max-width:100%}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--accent)}
+input[type=checkbox]{width:1.25rem;height:1.25rem;accent-color:var(--accent);margin:0}
+.check{display:flex;align-items:center;gap:.6rem;min-height:44px}
+.err{color:var(--crit-text);font-size:.9rem}
+.okmsg{color:var(--good-text);font-size:.9rem}
+.hint{color:var(--muted);font-size:.85rem}
+.slider-row{display:grid;grid-template-columns:1fr 5.5rem;gap:.5rem;align-items:center}
+.slider-row input[type=number]{min-height:44px;border:var(--bw) solid var(--line-strong);border-radius:var(--radius);padding:.3rem .5rem;background:var(--surface);width:100%}
+details{border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.25rem .75rem}
+details[open]{padding-bottom:.75rem}
+summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+details>*:not(summary){margin-top:.5rem}
+
+/* ---- data lists ---- */
+.kv{display:grid;grid-template-columns:auto 1fr;gap:.25rem .9rem;margin:0;font-size:.92rem}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+.kv dd.hi{font-weight:600}
+.checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem;font-size:.92rem}
+.checklist li{display:grid;grid-template-columns:1.4rem 1fr auto;gap:.5rem;align-items:center;min-height:1.6rem}
+.checklist .mark{font-family:var(--font-mono);font-weight:600;text-align:center}
+.checklist li.ok .mark{color:var(--good-text)} .checklist li.no .mark{color:var(--crit-text)}
+.checklist .val{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+
+/* ---- phase stepper ---- */
+.phases{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.15rem}
+.phases li{display:grid;grid-template-columns:1.6rem 1fr auto;gap:.5rem;align-items:center;padding:.3rem .5rem;border-radius:var(--radius);border:var(--bw) solid transparent;font-size:.92rem;min-height:2.2rem}
+.phases li .ic{font-family:var(--font-mono);text-align:center;color:var(--muted)}
+.phases li .who{font-size:.8rem;color:var(--muted)}
+.phases li.done{color:var(--muted)} .phases li.done .ic{color:var(--good-text)}
+.phases li[aria-current="step"]{font-weight:700;border-color:var(--line-strong);background:var(--surface-2)}
+.phases li[aria-current="step"].imu{background:var(--imu-wash);border-color:var(--imu)}
+.phases li[aria-current="step"].cv{background:var(--cv-wash);border-color:var(--cv)}
+.progress{height:.6rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);overflow:hidden;position:relative}
+.progress .bar{height:100%;background:var(--imu);width:0}
+.progress .bar.cv{background:var(--cv)}
+.progress .thr{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--cv);left:80%}
+
+/* ---- 3D view ---- */
+.view-tools{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;gap:.25rem;flex-wrap:wrap}
+.view-wrap{position:relative;width:100%;aspect-ratio:4/3;max-width:100%;min-height:320px;border-radius:var(--radius);overflow:hidden;border:var(--bw) solid var(--line);background:var(--ground)}
+.view-wrap canvas{display:block;width:100%;height:100%}
+.view-wrap:focus-visible{outline-offset:-3px}
+.view-badge{position:absolute;left:.6rem;top:.6rem;background:var(--surface);border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.2rem .5rem;font-size:.8rem}
+.legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;font-size:.82rem;color:var(--muted);list-style:none;margin:0;padding:0}
+.legend li{display:inline-flex;align-items:center;gap:.4rem}
+.sw{width:1rem;height:.5rem;border-radius:2px;display:inline-block}
+.sw.line{height:2px} .sw.dash{height:0;border-top:2px dashed var(--muted)} .sw.ring{width:.75rem;height:.75rem;border-radius:50%;border:2px solid var(--cv);background:transparent}
+.readout{font-size:.95rem;padding:.6rem .75rem;background:var(--surface-2);border-radius:var(--radius);border-left:4px solid var(--accent)}
+.replay{display:none;flex-direction:column;gap:.25rem}
+.replay.on{display:flex}
+
+/* ---- charts ---- */
+.chart{display:flex;flex-direction:column;gap:.35rem;position:relative}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+.chart-head .now{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:600}
+.chart svg{width:100%;height:auto;display:block;border-radius:var(--radius)}
+.chart svg:focus-visible{outline:3px solid var(--focus)}
+.chart .grid line{stroke:var(--line);stroke-width:1}
+.chart .axis text{fill:var(--muted);font-size:9px;font-family:var(--font-mono)}
+.chart .area{opacity:.12}
+.chart .series{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .hair{stroke:var(--line-strong);stroke-width:1}
+.chart .dot{stroke:var(--surface);stroke-width:2}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:var(--bw) solid var(--line-strong);border-radius:var(--radius);padding:.25rem .5rem;font-size:.8rem;display:none;box-shadow:var(--shadow);white-space:nowrap;z-index:5}
+.tip strong{font-family:var(--font-mono);font-size:.9rem}
+.tip.on{display:block}
+.chart table{border-collapse:collapse;width:100%;font-size:.85rem;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.chart th,.chart td{text-align:right;padding:.2rem .4rem;border-bottom:1px solid var(--line)}
+.chart th{font-weight:600;color:var(--muted)}
+.chart-table[hidden]{display:none}
+.btn.small{min-height:36px;padding:.25rem .6rem;font-size:.85rem;font-weight:400}
+
+/* ---- vision ---- */
+.ir-wrap{position:relative;width:100%;aspect-ratio:4/3;max-width:100%;border-radius:var(--radius);overflow:hidden;border:var(--bw) solid var(--line);background:#0a0a0a}
+.ir-wrap img{display:block;width:100%;height:100%;object-fit:contain}
+.ir-wrap .nostream{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c8d7e6;font-size:.95rem}
+.lock{display:flex;align-items:center;gap:.5rem;font-weight:700}
+.lock .ic{font-family:var(--font-mono)}
+.meter{display:grid;grid-template-columns:1fr 4rem;gap:.5rem;align-items:center;font-size:.9rem}
+.meter .track{height:.7rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);overflow:hidden}
+.meter .fill{height:100%;background:var(--cv);width:0}
+.meter output{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+
+/* ---- fins ---- */
+.fins{display:flex;flex-direction:column;gap:.5rem}
+.fin{display:grid;grid-template-columns:8.5rem 1fr 4.5rem;gap:.5rem;align-items:center;font-size:.88rem}
+.gauge{position:relative;height:1rem;background:var(--surface-2);border:var(--bw) solid var(--line);border-radius:999px;overflow:hidden}
+.gauge .c{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--line-strong);transform:translateX(-50%)}
+.gauge .act{position:absolute;top:2px;bottom:2px;background:var(--accent);border-radius:2px}
+.gauge .cmd{position:absolute;top:0;bottom:0;width:3px;background:var(--ink);transform:translateX(-50%)}
+.fin output{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+.override-box{display:flex;flex-direction:column;gap:.5rem}
+.banner{padding:.5rem .75rem;border-radius:var(--radius);border:var(--bw) solid var(--warn-text);background:var(--surface-2);font-size:.9rem;display:none}
+.banner.on{display:block}
+
+/* ---- log ---- */
+.log-tools{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center}
+.log{list-style:none;margin:0;padding:.5rem;height:12rem;overflow:auto;border:var(--bw) solid var(--line);border-radius:var(--radius);background:var(--surface-2);font-size:.88rem;display:flex;flex-direction:column;gap:.15rem}
+.log li{display:grid;grid-template-columns:5.5rem 1.6rem 1fr;gap:.5rem;align-items:start}
+.log .ts{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.log .lv{font-family:var(--font-mono);text-align:center}
+.log li.warn .lv{color:var(--warn-text)} .log li.crit .lv{color:var(--crit-text);font-weight:700} .log li.good .lv{color:var(--good-text)}
+
+/* ---- dialogs ---- */
+dialog{background:var(--surface);color:var(--ink);border:var(--bw) solid var(--line-strong);border-radius:10px;padding:1.25rem;max-width:min(32rem,calc(100vw - 32px));width:100%}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog form{display:flex;flex-direction:column;gap:.9rem}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.keys{border-collapse:collapse;width:100%;font-size:.92rem}
+.keys th,.keys td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--line)}
+kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;padding:0 .35rem;font-size:.85em;background:var(--surface-2)}
+
+@media (prefers-reduced-motion: reduce){ :root{--motion:0} }
+</style>
+
+<a class="skip" href="#main">Skip to flight deck</a>
+
+<header class="topbar">
+  <div class="brand"><span class="brand-name">Fish GCS</span><span class="brand-sub" id="brand-sub">Ground station</span></div>
+  <ul class="links" aria-label="Link status">
+    <li class="pill" id="pill-srv"><span class="dot" aria-hidden="true"></span><span class="pill-k">Server</span><span class="pill-v mono" id="pill-srv-v">connecting</span></li>
+    <li class="pill" id="pill-fin"><span class="dot" aria-hidden="true"></span><span class="pill-k">Fin board</span><span class="pill-v mono" id="pill-fin-v">no link</span></li>
+    <li class="pill" id="pill-cam"><span class="dot" aria-hidden="true"></span><span class="pill-k">Camera</span><span class="pill-v mono" id="pill-cam-v">no stream</span></li>
+    <li class="pill" id="pill-imu"><span class="dot" aria-hidden="true"></span><span class="pill-k">IMU</span><span class="pill-v mono" id="pill-imu-v">no data</span></li>
+  </ul>
+  <div class="phase-now" id="phase-now" aria-label="Current phase"><span class="phase-icon" id="phase-icon" aria-hidden="true">○</span><span id="phase-label">Disconnected</span><span class="mono" id="phase-pct"></span></div>
+  <div class="clock" id="clock" aria-label="Mission clock">T−00:00.0</div>
+  <div class="topbar-actions">
+    <button class="btn ghost" id="btn-keys" aria-haspopup="dialog">Keys <span aria-hidden="true">?</span></button>
+    <button class="btn ghost" id="btn-settings" aria-haspopup="dialog">Settings</button>
+    <button class="btn abort" id="btn-abort" disabled>ABORT</button>
+  </div>
+  <div class="cue" id="cue" hidden><span class="cue-ic" id="cue-ic" aria-hidden="true"></span><span id="cue-text" role="status" aria-live="assertive"></span><span class="cue-count mono" id="cue-count" aria-hidden="true"></span><button class="btn small" id="cue-cancel" hidden>Cancel launch</button></div>
+</header>
+
+<nav class="jump" aria-label="Jump to">
+  <a href="#sec-mission">Mission setup</a><a href="#sec-guidance">Guidance</a><a href="#sec-view">3D view</a><a href="#sec-charts">Charts</a><a href="#sec-vision">Vision</a><a href="#sec-fins">Fins</a><a href="#sec-log">Event log</a>
+</nav>
+
+<main id="main" class="deck">
+
+  <!-- ================= MISSION SETUP ================= -->
+  <section class="panel" id="sec-mission" aria-labelledby="h-mission">
+    <div class="panel-head"><h2 id="h-mission">Mission setup</h2><span class="sub">F2</span></div>
+
+    <fieldset>
+      <legend>1 · Connect over hotspot</legend>
+      <div class="field"><label for="ip-fin">Fin board IP</label><input type="text" id="ip-fin" value="172.20.10.12" inputmode="decimal" aria-describedby="ip-fin-msg"><span id="ip-fin-msg" class="hint">ESP32-S3, UDP 4210</span></div>
+      <div class="field"><label for="ip-cam">Camera IP</label><input type="text" id="ip-cam" value="172.20.10.13" inputmode="decimal" aria-describedby="ip-cam-msg"><span id="ip-cam-msg" class="hint">ESP32-CAM, MJPEG :81/stream</span></div>
+      <div class="btn-row"><button class="btn primary" id="btn-connect">Connect</button><button class="btn" id="btn-disconnect" disabled>Disconnect</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2 · Mission target and speed</legend>
+      <div class="field"><label for="m-speed">Launch speed (m/s)</label><input type="number" id="m-speed" value="0.8" min="0.1" max="20" step="0.1" aria-describedby="m-speed-msg"><span id="m-speed-msg" class="hint">Starting speed for dead reckoning and the expected flight time.</span></div>
+      <div class="field"><span id="m-xyz-label">Target, metres from the launch point: x right, y up, z ahead of the nose at launch</span>
+        <div class="xyz" role="group" aria-labelledby="m-xyz-label">
+          <input type="number" id="m-x" value="2.0" step="0.1" aria-label="Target x, metres"><input type="number" id="m-y" value="8.0" step="0.1" aria-label="Target y, metres up"><input type="number" id="m-z" value="1.0" step="0.1" aria-label="Target z, metres">
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn primary" id="btn-apply-mission">Apply mission</button><button class="btn" id="btn-sample-init">Fill sample values</button></div>
+      <p id="init-msg" class="hint">No mission set yet.</p>
+      <dl class="kv" id="init-kv" hidden>
+        <dt>Distance</dt><dd id="init-dist">—</dd>
+        <dt>Expected flight time</dt><dd id="init-eta">—</dd>
+        <dt>Hand-over point</dt><dd id="init-ho">—</dd>
+        <dt>Pre-filled from</dt><dd id="init-src">—</dd>
+      </dl>
+      <div class="field"><label for="init-file">Optional: pre-fill from microSD init file (CSV or JSON)</label><input type="file" id="init-file" accept=".csv,.json,.txt" aria-describedby="init-file-msg"><span id="init-file-msg" class="hint">Fills the fields above; you still press Apply mission.</span></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3 · Calibrate and arm</legend>
+      <div class="btn-row"><button class="btn" id="btn-cal" disabled>Calibrate IMU</button><button class="btn" id="btn-selftest" disabled>Fin self-test</button></div>
+      <p id="cal-msg" class="hint">Hold the fish still for 3 s during calibration.</p>
+      <ul class="checklist" id="preflight" aria-label="Pre-flight checklist">
+        <li id="pf-link"><span class="mark" aria-hidden="true">✘</span><span>Fin board and camera linked</span><span class="val"></span></li>
+        <li id="pf-init"><span class="mark" aria-hidden="true">✘</span><span>Mission target and speed set</span><span class="val"></span></li>
+        <li id="pf-cal"><span class="mark" aria-hidden="true">✘</span><span>IMU calibrated</span><span class="val"></span></li>
+        <li id="pf-fins"><span class="mark" aria-hidden="true">✘</span><span>Fins responded to self-test</span><span class="val"></span></li>
+        <li id="pf-batt"><span class="mark" aria-hidden="true">✘</span><span>Battery above 7.0 V</span><span class="val"></span></li>
+      </ul>
+      <div class="btn-row">
+        <button class="btn warnbtn" id="btn-arm" disabled>Arm</button>
+        <button class="btn primary" id="btn-launch" disabled>Launch</button>
+      </div>
+      <label class="check"><input type="checkbox" id="opt-autolaunch" checked> Detect launch from accelerometer</label>
+      <p id="arm-msg" class="hint"></p>
+    </fieldset>
+  </section>
+
+  <!-- ================= GUIDANCE ================= -->
+  <section class="panel" id="sec-guidance" aria-labelledby="h-guidance">
+    <div class="panel-head"><h2 id="h-guidance">Guidance</h2><span class="sub">F3</span></div>
+    <ol class="phases" id="phases" aria-label="Mission phases"></ol>
+    <div>
+      <div class="progress" aria-hidden="true"><div class="bar" id="prog-bar"></div><div class="thr" id="prog-thr"></div></div>
+      <p class="hint" id="prog-text">Progress 0 % of the path · hand-over at 80 %</p>
+    </div>
+    <div class="field">
+      <label for="thr">Hand-over threshold (% of path under IMU)</label>
+      <div class="slider-row"><input type="range" id="thr" min="60" max="95" step="1" value="80" aria-describedby="thr-hint"><input type="number" id="thr-n" min="60" max="95" step="1" value="80" aria-label="Hand-over threshold, percent"></div>
+      <span id="thr-hint" class="hint">Vision takes over for the remaining part. Applies when you release the slider.</span>
+    </div>
+    <div>
+      <h3>Hand-over conditions</h3>
+      <ul class="checklist" id="ho-list" aria-label="Hand-over conditions">
+        <li id="ho-prog" class="no"><span class="mark" aria-hidden="true">✘</span><span>Progress at threshold</span><span class="val" id="ho-prog-v">0 % / 80 %</span></li>
+        <li id="ho-frames" class="no"><span class="mark" aria-hidden="true">✘</span><span>Beacon seen 5 frames in a row</span><span class="val" id="ho-frames-v">0 / 5</span></li>
+        <li id="ho-conf" class="no"><span class="mark" aria-hidden="true">✘</span><span>Confidence at least 0.60</span><span class="val" id="ho-conf-v">0.00</span></li>
+        <li id="ho-link" class="no"><span class="mark" aria-hidden="true">✘</span><span>Fin link healthy</span><span class="val" id="ho-link-v">—</span></li>
+      </ul>
+    </div>
+    <div>
+      <h3>IMU and estimate</h3>
+      <dl class="kv">
+        <dt>Roll / pitch / yaw</dt><dd id="imu-att">—</dd>
+        <dt>Estimated position</dt><dd id="imu-pos">—</dd>
+        <dt>Distance to target</dt><dd class="hi" id="imu-dist">—</dd>
+        <dt>Dead-reckoning drift</dt><dd id="imu-drift">—</dd>
+      </dl>
+    </div>
+    <details>
+      <summary>Advanced guidance overrides</summary>
+      <p class="hint">Use only if the automatic hand-over misbehaves. Both are logged.</p>
+      <div class="btn-row"><button class="btn" id="btn-force-ho" disabled>Force hand-over now</button><button class="btn" id="btn-return-imu" disabled>Return to IMU</button></div>
+    </details>
+  </section>
+
+  <!-- ================= 3D VIEW ================= -->
+  <section class="panel" id="sec-view" aria-labelledby="h-view">
+    <div class="panel-head"><h2 id="h-view">3D flight view</h2><span class="sub">F4 · launch point to target, 1 grid square = 1 m</span></div>
+    <div class="view-tools">
+      <div class="seg" role="group" aria-label="Camera preset">
+        <button class="btn small" id="view-follow" aria-pressed="true">Follow</button>
+        <button class="btn small" id="view-side" aria-pressed="false">Side</button>
+        <button class="btn small" id="view-top" aria-pressed="false">Top</button>
+      </div>
+      <button class="btn small" id="btn-pause" aria-pressed="false">Pause view updates</button>
+    </div>
+    <div class="view-wrap" id="view-wrap" tabindex="0" role="group" aria-label="3D flight view. Arrow keys orbit, plus and minus zoom, Home resets the camera. The text below describes the same information.">
+      <canvas id="view3d" aria-hidden="true"></canvas>
+      <span class="view-badge" id="view-badge" aria-hidden="true">Follow</span>
+    </div>
+    <ul class="legend" aria-label="Legend">
+      <li><span class="sw" style="background:var(--accent)"></span>Fish (IMU estimate)</li>
+      <li><span class="sw line" style="background:var(--imu)"></span>Trail, IMU glide</li>
+      <li><span class="sw line" style="background:var(--cv)"></span>Trail, vision homing</li>
+      <li><span class="sw dash"></span>Planned path</li>
+      <li><span class="sw ring"></span>Hand-over ring</li>
+      <li><span class="sw" style="background:var(--cv);border-radius:50%;width:.6rem;height:.6rem"></span>Beacon (target)</li>
+    </ul>
+    <p class="readout" id="readout">Not connected. Connect the fish to start receiving position data.</p>
+    <div class="replay" id="replay">
+      <label for="scrub">Replay flight (drag to scrub, Live returns to the end)</label>
+      <div class="slider-row"><input type="range" id="scrub" min="0" max="0" value="0" step="1"><button class="btn small" id="btn-live">Live</button></div>
+      <span class="hint mono" id="scrub-t">t = 0.0 s</span>
+    </div>
+  </section>
+
+  <!-- ================= CHARTS ================= -->
+  <section class="panel" id="sec-charts" aria-labelledby="h-charts">
+    <div class="panel-head"><h2 id="h-charts">Last 30 seconds</h2><span class="sub">F8</span></div>
+    <div class="chart" id="chart-dist">
+      <div class="chart-head"><h3>Distance to target (m)</h3><span class="now" id="chart-dist-now">—</span></div>
+      <svg role="img" tabindex="0" aria-label="Distance to target over the last 30 seconds"></svg>
+      <div class="tip" role="status" aria-live="off"></div>
+      <div><button class="btn small" aria-expanded="false" aria-controls="chart-dist-table">Show table</button></div>
+      <div class="chart-table" id="chart-dist-table" hidden></div>
+    </div>
+    <div class="chart" id="chart-err">
+      <div class="chart-head"><h3>Vision error (px)</h3><span class="now" id="chart-err-now">—</span></div>
+      <svg role="img" tabindex="0" aria-label="Vision pixel error over the last 30 seconds"></svg>
+      <div class="tip" role="status" aria-live="off"></div>
+      <div><button class="btn small" aria-expanded="false" aria-controls="chart-err-table">Show table</button></div>
+      <div class="chart-table" id="chart-err-table" hidden></div>
+    </div>
+  </section>
+
+  <!-- ================= VISION ================= -->
+  <section class="panel" id="sec-vision" aria-labelledby="h-vision">
+    <div class="panel-head"><h2 id="h-vision">Vision</h2><span class="sub">F5 · YOLO nano + IR blob</span></div>
+    <div class="ir-wrap"><img id="ir" alt="" aria-hidden="true"><div class="nostream" id="ir-nostream">No stream</div></div>
+    <p class="lock" id="lock"><span class="ic" aria-hidden="true">○</span><span id="lock-t">No stream</span></p>
+    <div class="meter"><label for="conf-out" style="grid-column:1/-1;font-size:.9rem">Detection confidence</label><div class="track" aria-hidden="true"><div class="fill" id="conf-fill"></div></div><output id="conf-out">0.00</output></div>
+    <dl class="kv">
+      <dt>Pixel error (ex, ey)</dt><dd id="cv-err">—</dd>
+      <dt>Normalised error</dt><dd id="cv-norm">—</dd>
+      <dt>Fin deflection from vision</dt><dd id="cv-fin">—</dd>
+      <dt>Frames · inference</dt><dd id="cv-fps">—</dd>
+    </dl>
+    <p class="hint" id="cv-alt">No camera stream.</p>
+    <p class="hint" id="cv-src"></p>
+    <details>
+      <summary>Detection tuning</summary>
+      <p class="hint">Changes apply when you release a slider and are sent to the ground station.</p>
+      <div class="field"><label for="tn-rel">Relative threshold <output for="tn-rel" id="tn-rel-o">0.50</output></label><input type="range" id="tn-rel" min="0.1" max="0.95" step="0.05" value="0.5"></div>
+      <div class="field"><label for="tn-con">Min contrast <output for="tn-con" id="tn-con-o">40</output></label><input type="range" id="tn-con" min="5" max="150" step="5" value="40"></div>
+      <div class="field"><label for="tn-area">Min blob area px <output for="tn-area" id="tn-area-o">4</output></label><input type="range" id="tn-area" min="1" max="60" step="1" value="4"></div>
+      <div class="field"><label for="tn-blur">Blur kernel <output for="tn-blur" id="tn-blur-o">9</output></label><input type="range" id="tn-blur" min="1" max="41" step="2" value="9"></div>
+    </details>
+  </section>
+
+  <!-- ================= FINS ================= -->
+  <section class="panel" id="sec-fins" aria-labelledby="h-fins">
+    <div class="panel-head"><h2 id="h-fins">Fins</h2><span class="sub">F6 · ±30° from neutral</span></div>
+    <div class="banner" id="ov-banner">Manual override is on. Guidance is paused until you switch it off.</div>
+    <div class="fins" id="fins">
+      <div class="fin"><span>Fin 0 · pitch, right</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g0a"></div><div class="cmd" id="g0c"></div></div><output id="f0">+0.0°</output></div>
+      <div class="fin"><span>Fin 1 · yaw, top</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g1a"></div><div class="cmd" id="g1c"></div></div><output id="f1">+0.0°</output></div>
+      <div class="fin"><span>Fin 2 · pitch, left</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g2a"></div><div class="cmd" id="g2c"></div></div><output id="f2">+0.0°</output></div>
+      <div class="fin"><span>Fin 3 · yaw, bottom</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g3a"></div><div class="cmd" id="g3c"></div></div><output id="f3">+0.0°</output></div>
+    </div>
+    <p class="hint">Bar = actual (slewed) deflection. Dark tick = commanded.</p>
+    <dl class="kv">
+      <dt>Yaw cmd → actual</dt><dd id="fin-yaw">—</dd>
+      <dt>Pitch cmd → actual</dt><dd id="fin-pitch">—</dd>
+      <dt>Link round-trip</dt><dd id="fin-rtt">—</dd>
+      <dt>Packets sent / acked</dt><dd id="fin-pk">—</dd>
+      <dt>Battery</dt><dd id="fin-batt">—</dd>
+    </dl>
+    <div class="btn-row"><button class="btn" id="btn-neutral" disabled>Fins to neutral</button></div>
+    <div class="override-box">
+      <label class="check"><input type="checkbox" id="ov-on" disabled> Manual override</label>
+      <div class="field"><label for="ov-yaw">Yaw deflection <output for="ov-yaw" id="ov-yaw-o">0°</output></label><input type="range" id="ov-yaw" min="-30" max="30" step="1" value="0" disabled></div>
+      <div class="field"><label for="ov-pitch">Pitch deflection <output for="ov-pitch" id="ov-pitch-o">0°</output></label><input type="range" id="ov-pitch" min="-30" max="30" step="1" value="0" disabled></div>
+    </div>
+    <details>
+      <summary>PID tuning</summary>
+      <div class="field"><label for="pid-kp">Kp <output for="pid-kp" id="pid-kp-o">0.60</output></label><input type="range" id="pid-kp" min="0" max="1.5" step="0.05" value="0.6"></div>
+      <div class="field"><label for="pid-ki">Ki <output for="pid-ki" id="pid-ki-o">0.05</output></label><input type="range" id="pid-ki" min="0" max="0.5" step="0.01" value="0.05"></div>
+      <div class="field"><label for="pid-db">Deadband px <output for="pid-db" id="pid-db-o">6</output></label><input type="range" id="pid-db" min="0" max="40" step="1" value="6"></div>
+      <div class="field"><label for="pid-ms">Max step °/frame <output for="pid-ms" id="pid-ms-o">8.0</output></label><input type="range" id="pid-ms" min="1" max="20" step="0.5" value="8"></div>
+    </details>
+  </section>
+
+  <!-- ================= LOG ================= -->
+  <section class="panel" id="sec-log" aria-labelledby="h-log">
+    <div class="panel-head"><h2 id="h-log">Event log</h2><span class="sub">F7 · newest at the bottom</span></div>
+    <div class="log-tools">
+      <label class="check"><input type="checkbox" id="log-auto" checked> Auto-scroll</label>
+      <button class="btn small" id="btn-copylog">Copy log</button>
+      <span class="err" id="cmd-err" role="status"></span>
+      <button class="btn small" id="btn-clearlog">Clear</button>
+      <button class="btn small" id="btn-newmission" disabled>New mission</button>
+      <a class="btn small" href="/log.json" download="fish-flight.json">Download JSON</a>
+      <a class="btn small" href="/log.csv" download="fish-flight.csv">Download CSV</a>
+    </div>
+    <ol class="log" id="log" role="log" aria-live="polite" aria-relevant="additions"></ol>
+  </section>
+</main>
+
+<div id="live-polite" class="sr-only" aria-live="polite"></div>
+<div id="live-assertive" class="sr-only" role="alert"></div>
+
+<!-- ================= SETTINGS ================= -->
+<dialog id="dlg-settings" aria-labelledby="h-settings">
+  <form method="dialog">
+    <div class="dlg-head"><h2 id="h-settings">Settings</h2><button class="btn ghost" value="close" type="submit">Close</button></div>
+    <div class="field"><label for="st-theme">Theme</label><select id="st-theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+    <label class="check"><input type="checkbox" id="st-contrast"> High contrast borders and labels</label>
+    <div class="field"><label for="st-size">Text size</label><select id="st-size"><option value="100">100 %</option><option value="125">125 %</option><option value="150">150 %</option></select></div>
+    <div class="field"><label for="st-motion">Motion</label><select id="st-motion"><option value="system">Follow system</option><option value="reduce">Reduce motion</option></select></div>
+    <label class="check"><input type="checkbox" id="st-keys" checked> Single-key shortcuts (X, A, L, N, P, 1–3)</label>
+    <div class="field"><label for="st-count">Launch countdown</label><select id="st-count"><option value="3">3 s</option><option value="5">5 s</option><option value="10">10 s</option></select></div>
+    <div class="field"><label for="st-units">Units</label><select id="st-units"><option value="m">metres</option><option value="ft">feet</option></select></div>
+    <div class="field"><label for="st-verb">Screen-reader announcements</label><select id="st-verb"><option value="all">Every log event</option><option value="phase">Phase changes and alerts only</option></select></div>
+    <p class="hint">Settings are stored in this browser only.</p>
+  </form>
+</dialog>
+
+<!-- ================= SHORTCUTS ================= -->
+<dialog id="dlg-keys" aria-labelledby="h-keys">
+  <form method="dialog">
+    <div class="dlg-head"><h2 id="h-keys">Keyboard shortcuts</h2><button class="btn ghost" value="close" type="submit">Close</button></div>
+    <table class="keys">
+      <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>X</kbd></td><td>Abort (any phase after Ready, single press)</td></tr>
+        <tr><td><kbd>A</kbd></td><td>Arm, then confirm arm</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Start the launch countdown (only when armed)</td></tr>
+        <tr><td><kbd>N</kbd></td><td>Fins to neutral</td></tr>
+        <tr><td><kbd>P</kbd></td><td>Pause or resume the 3D view</td></tr>
+        <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Camera preset Follow / Side / Top</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Orbit the 3D view when it has focus; <kbd>+</kbd> <kbd>−</kbd> zoom, <kbd>Home</kbd> resets</td></tr>
+        <tr><td><kbd>?</kbd></td><td>This dialog</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close a dialog. Never aborts.</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">Single-key shortcuts can be switched off in Settings; every action is also a button.</p>
+  </form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = (id) => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const fmt = (v,d=1) => (v==null||isNaN(v)) ? '—' : v.toFixed(d);
+const sgn = (v,d=1) => (v>=0?'+':'') + v.toFixed(d);
+
+/* ================= settings ================= */
+const settings = { theme:'system', contrast:false, size:'100', motion:'system', keys:true, count:'3', units:'m', verb:'all' };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('fishgcs.settings')||'{}')); } catch(e){}
+function saveSettings(){ try { localStorage.setItem('fishgcs.settings', JSON.stringify(settings)); } catch(e){} }
+const mqMotion = matchMedia('(prefers-reduced-motion: reduce)');
+function reduceMotion(){ return settings.motion==='reduce' || mqMotion.matches; }
+function applySettings(){
+  const root = document.documentElement;
+  if (settings.theme==='system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', settings.theme);
+  if (settings.contrast) root.setAttribute('data-contrast','high'); else root.removeAttribute('data-contrast');
+  root.style.fontSize = settings.size + '%';
+  $('log').setAttribute('aria-live', settings.verb==='all' ? 'polite' : 'off');
+  $('st-theme').value = settings.theme; $('st-contrast').checked = settings.contrast; $('st-size').value = settings.size;
+  $('st-motion').value = settings.motion; $('st-keys').checked = settings.keys; $('st-count').value = settings.count;
+  $('st-units').value = settings.units; $('st-verb').value = settings.verb;
+  if (typeof applyThemeTo3D === 'function') applyThemeTo3D();
+}
+[['st-theme','theme'],['st-size','size'],['st-motion','motion'],['st-units','units'],['st-verb','verb'],['st-count','count']].forEach(([id,k]) => {
+  $(id).addEventListener('change', e => { settings[k] = e.target.value; saveSettings(); applySettings(); });
+});
+[['st-contrast','contrast'],['st-keys','keys']].forEach(([id,k]) => {
+  $(id).addEventListener('change', e => { settings[k] = e.target.checked; saveSettings(); applySettings(); });
+});
+$('btn-settings').addEventListener('click', () => $('dlg-settings').showModal());
+$('btn-keys').addEventListener('click', () => $('dlg-keys').showModal());
+
+function unit(m){ return settings.units==='ft' ? (m*3.28084).toFixed(1)+' ft' : m.toFixed(2)+' m'; }
+
+/* ================= visual cue (replaces sound) ================= */
+let cueTimer = null;
+function showCue(icon, text, cls, ms, count){
+  const c = $('cue'); c.hidden = false; c.className = 'cue' + (cls ? ' ' + cls : '');
+  $('cue-ic').textContent = icon || ''; $('cue-text').textContent = text; $('cue-count').textContent = count!=null ? String(count) : '';
+  if (cueTimer) clearTimeout(cueTimer);
+  if (ms) cueTimer = setTimeout(hideCue, ms);
+}
+function hideCue(){ $('cue').hidden = true; $('cue-cancel').hidden = true; $('cue-count').textContent=''; }
+
+/* ================= phases ================= */
+const PHASES = [
+  {key:'disconnected', label:'Disconnected', icon:'○', who:'fins at neutral'},
+  {key:'ready',        label:'Ready',        icon:'◐', who:'link up, not armed'},
+  {key:'armed',        label:'Armed',        icon:'●', who:'waiting for launch'},
+  {key:'imu_glide',    label:'IMU glide',    icon:'▲', who:'ESP32 steers from init + IMU', cls:'imu'},
+  {key:'handover',     label:'Hand-over',    icon:'⇄', who:'blend, about 1 s', cls:'cv'},
+  {key:'cv_homing',    label:'Vision homing',icon:'◎', who:'laptop steers from YOLO + IR', cls:'cv'},
+  {key:'arrived',      label:'Arrived',      icon:'✔', who:'fins neutral', cls:'good'},
+  {key:'aborted',      label:'Aborted · safe', icon:'■', who:'fins neutral', cls:'crit'},
+];
+const phaseIdx = (k) => PHASES.findIndex(p => p.key===k);
+const FLYING = new Set(['imu_glide','handover','cv_homing']);
+(function buildStepper(){
+  const ol = $('phases');
+  PHASES.forEach(p => {
+    const li = document.createElement('li'); li.id = 'ph-' + p.key; if (p.cls) li.classList.add(p.cls);
+    const ic = document.createElement('span'); ic.className='ic'; ic.setAttribute('aria-hidden','true'); ic.textContent = p.icon;
+    const lb = document.createElement('span'); lb.textContent = p.label;
+    const who = document.createElement('span'); who.className='who'; who.textContent = p.who;
+    li.append(ic, lb, who); ol.appendChild(li);
+  });
+})();
+
+/* ================= mission geometry ================= */
+const V = THREE.Vector3;
+const LAUNCH = new V(0,0,0); let TARGET = new V(2,8,1);
+let PATH, PATH_LEN, DIR, RIGHT, UPP;
+function recomputeGeometry(){
+  PATH = new V().subVectors(TARGET, LAUNCH); PATH_LEN = PATH.length(); DIR = PATH.clone().normalize();
+  RIGHT = new V().crossVectors(DIR, new V(0,1,0)); if (RIGHT.lengthSq() < 1e-6) RIGHT = new V(1,0,0); RIGHT.normalize(); UPP = new V().crossVectors(RIGHT, DIR).normalize();
+}
+recomputeGeometry();
+
+/* ================= state (filled from the ground station) ================= */
+const S = {
+  phase:'disconnected', t:0, launchT:null, connected:false, fake:false, tel:null, wsOk:false, initLoaded:false, calibrated:false, selftest:false,
+  s:0, threshold:0.8, hist:[], paused:false, scrub:null, lastSnap:0, speed:0.8,
+  pos:new V(0,0,0), est:new V(0,0,0), att:{roll:0,pitch:0,yaw:0}, cv:{state:'none',ex:0,ey:0}, conf:0, cvFrames:0,
+  yaw:0, pitch:0, yawCmd:0, pitchCmd:0, rtt:null, sent:0, acked:0, batt:null, linkOk:false, imuAge:null, imuRate:0, cam:{connected:false,fps:0,cv_ms:0}, drift:0,
+  hoOk:[false,false,false,false], preflight:{}, override:{on:false,yaw:0,pitch:0}, armPending:null, launchPending:null, calibrating:null, selftestRunning:false, mission:{set:false},
+  cvW:640, cvH:480, cvSource:'ir', lastControls:0,
+};
+
+/* ================= log + live regions ================= */
+function clockStr(t){ const a = Math.abs(t); const m = Math.floor(a/60), s = (a%60); return (t<0?'T−':'T+') + String(m).padStart(2,'0') + ':' + s.toFixed(1).padStart(4,'0'); }
+function missionT(){ return S.tel && S.tel.t_mission != null ? S.tel.t_mission : null; }
+function log(msg, level, tMission){
+  level = level || 'info'; if (tMission === undefined) tMission = missionT();
+  const li = document.createElement('li'); li.className = level;
+  const ts = document.createElement('span'); ts.className='ts'; ts.textContent = tMission == null ? '—' : clockStr(tMission);
+  const lv = document.createElement('span'); lv.className='lv'; lv.setAttribute('aria-hidden','true');
+  lv.textContent = {info:'·', good:'✔', warn:'!', crit:'✖'}[level] || '·';
+  const tx = document.createElement('span'); tx.textContent = (level==='warn'?'Warning: ':level==='crit'?'Critical: ':'') + msg;
+  li.append(ts, lv, tx);
+  const ol = $('log'); ol.appendChild(li);
+  while (ol.children.length > 400) ol.removeChild(ol.firstChild);
+  if ($('log-auto').checked) ol.scrollTop = ol.scrollHeight;
+  if (level==='crit') { $('live-assertive').textContent = msg; }
+}
+function announce(msg){ const el = $('live-polite'); el.textContent=''; setTimeout(()=>{ el.textContent = msg; }, 30); }
+
+function onPhase(key, prev){
+  const p = PHASES[phaseIdx(key)]; if (!p) return;
+  S.phase = key;
+  if (settings.verb==='phase') announce('Phase ' + p.label);
+  if (key !== 'ready' || prev !== 'disconnected') showCue(p.icon, 'Phase: ' + p.label, p.cls || '', key==='aborted' ? 8000 : 4000);
+  if (key === 'imu_glide' && !FLYING.has(prev)) { S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); }
+  if (key === 'arrived' || key === 'aborted') enableReplay();
+  if (!FLYING.has(key) && countdown) cancelCountdown('phase changed');
+  updateControls();
+}
+
+/* ================= commands (HTTP POST /cmd) ================= */
+async function cmd(obj, errEl){
+  if (errEl) { errEl.textContent = ''; errEl.className = 'hint'; }
+  try {
+    const r = await fetch('/cmd', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(obj)});
+    const j = await r.json();
+    if (!j.ok) { const el = errEl || $('cmd-err'); el.textContent = j.error || 'Command failed.'; el.className = 'err'; log((obj.cmd || 'command') + ': ' + (j.error || 'failed'), 'warn'); }
+    return j;
+  } catch (e) {
+    const el = errEl || $('cmd-err'); el.textContent = 'Ground station not reachable.'; el.className = 'err'; return {ok:false, error:String(e)};
+  }
+}
+
+/* ================= controls ================= */
+function updateControls(){
+  const ph = S.phase, fly = FLYING.has(ph), pf = S.preflight || {};
+  $('btn-connect').disabled = S.connected || !S.wsOk;
+  $('btn-disconnect').disabled = !S.connected || fly;
+  $('btn-cal').disabled = !(ph==='ready') || S.calibrating != null;
+  $('btn-selftest').disabled = !(ph==='ready') || S.selftestRunning;
+  const preflightOk = Object.values(pf).length && Object.values(pf).every(Boolean);
+  $('btn-arm').disabled = !((ph==='ready' && preflightOk) || ph==='armed');
+  $('btn-arm').textContent = ph==='armed' ? 'Disarm' : (S.armPending != null ? 'Confirm arm (' + Math.ceil(S.armPending) + ' s)' : 'Arm');
+  $('btn-launch').disabled = ph!=='armed' || !!countdown || S.launchPending != null;
+  $('btn-abort').disabled = !(ph==='armed' || fly);
+  $('btn-neutral').disabled = !S.connected;
+  $('ov-on').disabled = !fly;
+  $('btn-force-ho').disabled = ph!=='imu_glide';
+  $('btn-return-imu').disabled = !(ph==='cv_homing' || ph==='handover');
+  $('btn-newmission').disabled = !(ph==='arrived' || ph==='aborted');
+  $('btn-apply-mission').disabled = fly;
+  const pfSet = (id, ok, val) => { const li = $(id); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); li.querySelector('.mark').textContent = ok?'✔':'✘'; li.querySelector('.val').textContent = val||''; li.setAttribute('aria-label', (ok?'Done: ':'Not done: ') + li.children[1].textContent + (val?', '+val:'')); };
+  pfSet('pf-link', pf.link, S.connected && S.rtt != null ? 'ACK ' + fmt(S.rtt,0) + ' ms' : '');
+  pfSet('pf-init', pf.mission, S.mission.set ? fmt(S.mission.path_len,1) + ' m at ' + fmt(S.mission.speed,1) + ' m/s' : '');
+  pfSet('pf-cal', pf.calibrated, S.calibrating != null ? 'hold still ' + fmt(S.calibrating,0) + ' s' : (pf.calibrated ? 'done' : ''));
+  pfSet('pf-fins', pf.selftest, S.selftestRunning ? 'running' : (pf.selftest ? '4 / 4 moved' : ''));
+  pfSet('pf-batt', pf.batt, S.batt != null ? fmt(S.batt,2) + ' V' : (S.connected ? 'no reading' : ''));
+  const cur = phaseIdx(ph);
+  PHASES.forEach((p,i) => {
+    const li = $('ph-'+p.key);
+    if (i===cur) li.setAttribute('aria-current','step'); else li.removeAttribute('aria-current');
+    const done = (i<cur && !(ph==='aborted' && i>=3));
+    li.classList.toggle('done', done);
+    li.querySelector('.ic').textContent = done ? '✔' : p.icon;
+  });
+  const p = PHASES[cur];
+  const pn = $('phase-now'); pn.className = 'phase-now' + (p.cls?' '+p.cls:'');
+  $('phase-icon').textContent = p.icon; $('phase-label').textContent = p.label;
+  $('cal-msg').textContent = S.calibrating != null ? 'Calibrating, hold still: ' + Math.ceil(S.calibrating) + ' s left.' : (S.calibrated ? 'Calibrated.' : 'Hold the fish still for 3 s during calibration.');
+  $('cal-msg').className = S.calibrated && S.calibrating == null ? 'okmsg' : 'hint';
+}
+
+function validIp(id, msgId, def){
+  const v = $(id).value.trim(); const m = $(msgId);
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(v)) { m.textContent = 'Enter an IPv4 address like 172.20.10.12.'; m.className='err'; $(id).setAttribute('aria-invalid','true'); return null; }
+  if (v.endsWith('.15')) { m.textContent = '.15 is the hotspot broadcast address and cannot be a device.'; m.className='err'; $(id).setAttribute('aria-invalid','true'); return null; }
+  m.textContent = def; m.className='hint'; $(id).removeAttribute('aria-invalid'); return v;
+}
+async function connect(){
+  const fin = validIp('ip-fin','ip-fin-msg','ESP32-S3, UDP 4210'), cam = validIp('ip-cam','ip-cam-msg','ESP32-CAM, MJPEG :81/stream');
+  if (!fin) { $('ip-fin').focus(); return; } if (!cam) { $('ip-cam').focus(); return; }
+  const b = $('btn-connect'); b.disabled = true; b.textContent = 'Connecting…';
+  const r = await cmd({cmd:'connect', fin_ip:fin, cam_ip:cam}, $('ip-fin-msg'));
+  b.textContent = 'Connect';
+  if (r.ok) { $('ip-fin-msg').textContent = 'ACK received, ' + fmt(r.rtt_ms,0) + ' ms round-trip.'; $('ip-fin-msg').className='okmsg'; $('ip-cam-msg').textContent = r.cam ? 'Stream open.' : 'No frame yet; the stream keeps retrying.'; $('ip-cam-msg').className = r.cam ? 'okmsg' : 'err'; }
+  updateControls();
+}
+$('btn-connect').addEventListener('click', connect);
+$('btn-disconnect').addEventListener('click', () => cmd({cmd:'disconnect'}, $('ip-fin-msg')).then(() => { $('ip-fin-msg').textContent='ESP32-S3, UDP 4210'; $('ip-fin-msg').className='hint'; $('ip-cam-msg').textContent='ESP32-CAM, MJPEG :81/stream'; $('ip-cam-msg').className='hint'; }));
+
+async function applyMission(source){
+  const sp = parseFloat($('m-speed').value), x = parseFloat($('m-x').value), y = parseFloat($('m-y').value), z = parseFloat($('m-z').value);
+  const msg = $('init-msg');
+  if (!(sp > 0)) { msg.textContent = 'Launch speed must be a number above 0 m/s.'; msg.className = 'err'; $('m-speed').focus(); return false; }
+  if ([x,y,z].some(v => isNaN(v)) || Math.hypot(x,y,z) < 0.5) { msg.textContent = 'Target must be at least 0.5 m from the launch point.'; msg.className = 'err'; $('m-x').focus(); return false; }
+  const r = await cmd({cmd:'mission', speed:sp, target:[x,y,z], source: source || 'typed in'}, msg);
+  if (r.ok) { msg.textContent = 'Mission applied: target ' + r.path_len.toFixed(2) + ' m away at ' + sp.toFixed(1) + ' m/s, expected ' + r.eta_s.toFixed(1) + ' s.'; msg.className = 'okmsg'; }
+  return r.ok;
+}
+$('btn-apply-mission').addEventListener('click', () => applyMission(''));
+$('btn-sample-init').addEventListener('click', () => { $('m-speed').value = '0.8'; $('m-x').value = '2.0'; $('m-y').value = '8.0'; $('m-z').value = '1.0'; $('init-msg').textContent = 'Sample values filled in. Press Apply mission.'; $('init-msg').className = 'hint'; });
+$('init-file').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const r = new FileReader(); const m = $('init-file-msg');
+  r.onload = () => {
+    const text = String(r.result); let speed = null, target = null;
+    try { const j = JSON.parse(text); speed = j.speed; target = j.target; } catch (_) {
+      const lines = text.split(/\r?\n/).filter(Boolean); if (lines.length >= 2) { const hdr = lines[0].split(',').map(h => h.trim().toLowerCase()); const row = lines[1].split(',');
+        const get = k => { const i = hdr.indexOf(k); return i >= 0 ? parseFloat(row[i]) : NaN; }; speed = get('speed'); target = [get('x'), get('y'), get('z')]; } }
+    if (!(speed > 0) || !target || target.some(v => isNaN(v))) { m.textContent = 'Could not find speed and target x, y, z in ' + f.name + '. Expect JSON {"speed", "target":[x,y,z]} or CSV columns speed,x,y,z.'; m.className='err'; return; }
+    $('m-speed').value = speed; $('m-x').value = target[0]; $('m-y').value = target[1]; $('m-z').value = target[2];
+    m.textContent = 'Fields filled from ' + f.name + '. Check them and press Apply mission.'; m.className='okmsg'; $('init-msg').textContent = 'Pre-filled from ' + f.name + '; not applied yet.'; $('init-msg').className='hint';
+    $('init-file').dataset.source = f.name;
+  };
+  r.onerror = () => { m.textContent = 'Could not read the file.'; m.className='err'; };
+  r.readAsText(f);
+});
+$('btn-cal').addEventListener('click', () => cmd({cmd:'calibrate'}, $('cal-msg')));
+$('btn-selftest').addEventListener('click', () => cmd({cmd:'selftest'}, $('cal-msg')));
+$('btn-arm').addEventListener('click', async () => {
+  if (S.phase==='armed') { await cmd({cmd:'disarm'}, $('arm-msg')); $('arm-msg').textContent = 'Disarmed.'; return; }
+  const r = await cmd({cmd:'arm'}, $('arm-msg'));
+  if (r.ok) $('arm-msg').textContent = r.armed ? 'Armed. Launch when ready, or press Abort.' : 'Press "Confirm arm" within 5 s to arm the fish.';
+});
+$('opt-autolaunch').addEventListener('change', e => cmd({cmd:'autolaunch', on:e.target.checked}));
+
+let countdown = null;
+function startCountdown(){
+  if (S.phase!=='armed' || countdown) return;
+  let n = parseInt(settings.count, 10) || 3;
+  showCue('▶', 'Launching in', 'warn', 0, n); $('cue-cancel').hidden = false; $('btn-launch').disabled = true;
+  log('Launch countdown started: ' + n + ' s. Press Cancel launch or Abort to stop it.', 'warn');
+  countdown = setInterval(async () => {
+    if (S.phase!=='armed') { cancelCountdown('phase changed'); return; }
+    n--; if (n > 0) { $('cue-count').textContent = String(n); return; }
+    clearInterval(countdown); countdown = null; $('cue-cancel').hidden = true; hideCue();
+    const r = await cmd({cmd:'launch'}, $('arm-msg'));
+    if (r.ok && r.pending) showCue('▲', 'Waiting for the accelerometer to see the launch', 'imu', 10000);
+    updateControls();
+  }, 1000);
+}
+function cancelCountdown(why){ if (!countdown) return; clearInterval(countdown); countdown = null; hideCue(); log('Launch countdown cancelled' + (why ? ' (' + why + ')' : '') + '.', 'warn'); updateControls(); }
+$('btn-launch').addEventListener('click', startCountdown);
+$('cue-cancel').addEventListener('click', () => cancelCountdown('by operator'));
+function abort(){ if ($('btn-abort').disabled) return; if (countdown) cancelCountdown('abort'); cmd({cmd:'abort'}); }
+$('btn-abort').addEventListener('click', abort);
+$('btn-neutral').addEventListener('click', () => cmd({cmd:'fins_neutral'}));
+$('btn-force-ho').addEventListener('click', () => cmd({cmd:'force_handover'}));
+$('btn-return-imu').addEventListener('click', () => cmd({cmd:'return_to_imu'}));
+$('btn-newmission').addEventListener('click', () => cmd({cmd:'new_mission'}).then(r => { if (r.ok) { S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); } }));
+function setOverrideUI(on){ $('ov-yaw').disabled = !on; $('ov-pitch').disabled = !on; $('ov-banner').classList.toggle('on', on); }
+$('ov-on').addEventListener('change', e => cmd({cmd:'override', on:e.target.checked, yaw:+$('ov-yaw').value, pitch:+$('ov-pitch').value}).then(r => { if (!r.ok) e.target.checked = false; setOverrideUI(e.target.checked); }));
+let ovTimer = null;
+function sendOverride(){ if (ovTimer) return; ovTimer = setTimeout(() => { ovTimer = null; cmd({cmd:'override', on:$('ov-on').checked, yaw:+$('ov-yaw').value, pitch:+$('ov-pitch').value}); }, 100); }
+$('ov-yaw').addEventListener('input', e => { $('ov-yaw-o').textContent = sgn(+e.target.value,0)+'°'; sendOverride(); });
+$('ov-pitch').addEventListener('input', e => { $('ov-pitch-o').textContent = sgn(+e.target.value,0)+'°'; sendOverride(); });
+function setThresholdUI(v){ v = clamp(Math.round(v),60,95); S.threshold = v/100; $('thr').value = v; $('thr-n').value = v; $('prog-thr').style.left = v+'%'; placeHandoverRing(); if (S.mission.set) $('init-ho').textContent = v + ' % · ' + (PATH_LEN*S.threshold).toFixed(2) + ' m along path'; }
+$('thr').addEventListener('input', e => { $('thr-n').value = e.target.value; });
+$('thr').addEventListener('change', e => { setThresholdUI(+e.target.value); cmd({cmd:'handover_threshold', value:+$('thr').value}, $('thr-hint')); });
+$('thr-n').addEventListener('change', e => { setThresholdUI(+e.target.value); cmd({cmd:'handover_threshold', value:+$('thr').value}, $('thr-hint')); });
+const TUNE = {'tn-rel':['rel_threshold',2],'tn-con':['min_contrast',0],'tn-area':['min_area',0],'tn-blur':['blur',0],'pid-kp':['kp',2],'pid-ki':['ki',2],'pid-db':['deadband_px',0],'pid-ms':['max_step',1]};
+Object.entries(TUNE).forEach(([id,[key,d]]) => { $(id).addEventListener('input', e => { $(id+'-o').textContent = (+e.target.value).toFixed(d); }); $(id).addEventListener('change', e => cmd({cmd:'tune', key, value:+e.target.value})); });
+$('btn-clearlog').addEventListener('click', () => { $('log').replaceChildren(); });
+$('btn-copylog').addEventListener('click', () => {
+  const text = Array.from($('log').children).map(li => li.children[0].textContent + '  ' + li.children[2].textContent).join('\n');
+  const done = () => { $('btn-copylog').textContent = 'Copied'; setTimeout(()=>{ $('btn-copylog').textContent='Copy log'; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => { const r = document.createRange(); r.selectNodeContents($('log')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); });
+});
+
+/* ================= telemetry (WebSocket /ws) ================= */
+let ws = null, wsRetry = null;
+function connectWs(){
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  try { ws = new WebSocket(url); } catch (e) { scheduleWs(); return; }
+  ws.onopen = () => { S.wsOk = true; pill('pill-srv', 'ok', 'ok'); updateControls(); };
+  ws.onclose = () => { S.wsOk = false; pill('pill-srv', 'lost', 'lost'); scheduleWs(); updateControls(); };
+  ws.onerror = () => { try { ws.close(); } catch (_) {} };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+    if (m.type === 'hello') { S.fake = !!m.fake; $('brand-sub').textContent = m.fake ? 'Ground station · FAKE fish' : 'Ground station'; if (m.defaults) { if (!$('ip-fin').value) $('ip-fin').value = m.defaults.fin_ip; if (!$('ip-cam').value) $('ip-cam').value = m.defaults.cam_ip; } (m.events || []).forEach(e => log(e.msg, e.level, e.t_mission)); }
+    else if (m.type === 'event') log(m.msg, m.level, m.t_mission);
+    else if (m.type === 'telemetry') applyTelemetry(m); };
+}
+function scheduleWs(){ if (wsRetry) return; wsRetry = setTimeout(() => { wsRetry = null; connectWs(); }, 1000); }
+
+function applyTelemetry(m){
+  const prev = S.phase; S.tel = m; S.t = m.t;
+  const wasConnected = S.connected; S.connected = !!m.connected;
+  S.s = m.progress || 0; S.rtt = m.link.fin_rtt_ms; S.sent = m.link.sent; S.acked = m.link.acked; S.linkOk = !!m.link.alive; S.imuAge = m.link.imu_age_ms; S.imuRate = m.link.imu_rate; S.cam = m.cam;
+  S.att = m.imu; S.est.set(m.est.x, m.est.y, m.est.z); S.pos.copy(S.est); S.drift = m.est.drift || 0;
+  S.cv = {state: S.connected ? m.cv.state : 'none', ex: m.cv.ex_px, ey: m.cv.ey_px}; S.conf = m.cv.conf; S.cvFrames = m.cv.frames; S.cvW = m.cv.w; S.cvH = m.cv.h; S.cvSource = m.cv.source;
+  S.yaw = m.fins.yaw; S.pitch = m.fins.pitch; S.yawCmd = m.fins.yaw_cmd; S.pitchCmd = m.fins.pitch_cmd;
+  S.batt = m.batt_v; S.hoOk = m.handover.ok; S.preflight = m.preflight; S.armPending = m.arm_pending_s; S.launchPending = m.launch_pending_s; S.calibrating = m.calibrating_s; S.calibrated = !!m.preflight.calibrated; S.selftest = !!m.preflight.selftest; S.selftestRunning = !!m.selftest_running;
+  if (m.handover.threshold !== S.threshold && document.activeElement !== $('thr') && document.activeElement !== $('thr-n')) setThresholdUI(m.handover.threshold*100);
+  if (m.override.on !== $('ov-on').checked) { $('ov-on').checked = m.override.on; }
+  setOverrideUI(m.override.on); S.override = m.override;
+  if (m.mission.set) { const t = m.mission.target; S.speed = m.mission.speed; S.mission = m.mission;
+    if (!S.initLoaded || TARGET.x !== t[0] || TARGET.y !== t[1] || TARGET.z !== t[2]) { TARGET = new V(t[0], t[1], t[2]); recomputeGeometry(); placeMissionObjects(); S.initLoaded = true; $('init-kv').hidden = false;
+      $('init-dist').textContent = PATH_LEN.toFixed(2) + ' m'; $('init-eta').textContent = (PATH_LEN/S.speed).toFixed(1) + ' s'; $('init-ho').textContent = Math.round(S.threshold*100) + ' % · ' + (PATH_LEN*S.threshold).toFixed(2) + ' m along path'; $('init-src').textContent = m.mission.source || 'typed in';
+      if (document.activeElement !== $('m-x') && document.activeElement !== $('m-y') && document.activeElement !== $('m-z') && document.activeElement !== $('m-speed')) { $('m-speed').value = S.speed; $('m-x').value = t[0]; $('m-y').value = t[1]; $('m-z').value = t[2]; } } }
+  if (m.t_mission != null) S.launchT = S.t - m.t_mission; else if (!FLYING.has(m.phase) && m.phase !== 'arrived' && m.phase !== 'aborted') S.launchT = null;
+  if (m.phase !== prev) onPhase(m.phase, prev);
+  if (S.connected !== wasConnected) { updateIR(); updateControls(); }
+  if (FLYING.has(m.phase) && S.t - S.lastSnap >= 0.1) { S.lastSnap = S.t; snapshotFromTelemetry(m); }
+  if (S.t - S.lastControls >= 0.25) { S.lastControls = S.t; updateControls(); }
+}
+function snapshotFromTelemetry(m){
+  const err = Math.hypot(m.cv.ex_px, m.cv.ey_px);
+  S.hist.push({ t:m.t_mission, phase:m.phase, s:S.s, pos:S.pos.clone(), est:S.est.clone(), att:{...m.imu}, yaw:S.yaw, pitch:S.pitch, yawCmd:S.yawCmd, pitchCmd:S.pitchCmd, cv:{state:m.cv.state, ex:m.cv.ex_px, ey:m.cv.ey_px, conf:m.cv.conf}, dist:m.est.dist, err });
+  if (S.hist.length > 2400) S.hist.shift();
+  appendTrail(S.hist[S.hist.length-1]);
+}
+function current(){ return S.scrub!=null && S.hist[S.scrub] ? S.hist[S.scrub] : null; }
+
+/* ================= DOM update (10 Hz) ================= */
+function pill(id, cls, text){ const el = $(id); el.classList.remove('ok','slow','lost'); if (cls) el.classList.add(cls); $(id+'-v').textContent = text; }
+function updateDOM(){
+  const snap = current();
+  const pos = snap ? snap.pos : S.pos, est = snap ? snap.est : S.est, att = snap ? snap.att : S.att;
+  const yaw = snap ? snap.yaw : S.yaw, pitch = snap ? snap.pitch : S.pitch, yawCmd = snap ? snap.yawCmd : S.yawCmd, pitchCmd = snap ? snap.pitchCmd : S.pitchCmd;
+  const cv = snap ? snap.cv : {state:S.cv.state, ex:S.cv.ex, ey:S.cv.ey, conf:S.conf};
+  const prog = snap ? snap.s : S.s;
+  if (!S.connected) { pill('pill-fin', 'lost', 'no link'); pill('pill-cam', 'lost', 'no stream'); pill('pill-imu', 'lost', 'no data'); }
+  else {
+    pill('pill-fin', S.linkOk ? (S.rtt < 60 ? 'ok' : 'slow') : 'lost', S.linkOk ? ((S.rtt < 60 ? 'ok ' : 'slow ') + fmt(S.rtt,0) + ' ms') : 'lost');
+    pill('pill-cam', S.cam.connected && S.cam.fps > 2 ? 'ok' : (S.cam.connected ? 'slow' : 'lost'), S.cam.connected ? (S.cam.fps > 2 ? 'ok ' : 'slow ') + fmt(S.cam.fps,0) + ' fps' : 'no stream');
+    pill('pill-imu', S.imuAge == null ? 'lost' : (S.imuAge < 200 ? 'ok' : 'slow'), S.imuAge == null ? 'no data' : (S.imuAge < 200 ? 'ok ' : 'slow ') + fmt(S.imuAge,0) + ' ms');
+  }
+  $('phase-pct').textContent = FLYING.has(S.phase) ? Math.round(prog*100) + ' %' : '';
+  const tm = missionT(); $('clock').textContent = tm == null ? 'T−00:00.0' : clockStr(tm);
+  const bar = $('prog-bar'); bar.style.width = clamp(prog*100, 0, 100) + '%'; bar.classList.toggle('cv', S.phase==='cv_homing'||S.phase==='handover'||S.phase==='arrived');
+  $('prog-text').textContent = 'Progress ' + Math.round(prog*100) + ' % of the path · hand-over at ' + Math.round(S.threshold*100) + ' %';
+  const c = S.hoOk || [false,false,false,false];
+  const hoSet = (id, ok, val) => { const li = $(id); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); li.querySelector('.mark').textContent = ok?'✔':'✘'; $(id+'-v').textContent = val; };
+  const hn = S.tel ? S.tel.handover : {frames_needed:5, conf_needed:0.6};
+  hoSet('ho-prog', c[0], Math.round(prog*100) + ' % / ' + Math.round(S.threshold*100) + ' %');
+  hoSet('ho-frames', c[1], Math.min(S.cvFrames,99) + ' / ' + hn.frames_needed); hoSet('ho-conf', c[2], fmt(cv.conf,2)); hoSet('ho-link', c[3], S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : 'no link');
+  $('ho-frames').children[1].textContent = 'Beacon seen ' + hn.frames_needed + ' frames in a row'; $('ho-conf').children[1].textContent = 'Confidence at least ' + (+hn.conf_needed).toFixed(2);
+  $('imu-att').textContent = S.connected ? sgn(att.roll,1)+'° / '+sgn(att.pitch,1)+'° / '+sgn(att.yaw,1)+'°' : '—';
+  $('imu-pos').textContent = S.connected ? fmt(est.x,2)+', '+fmt(est.y,2)+', '+fmt(est.z,2)+' m' : '—';
+  $('imu-dist').textContent = S.connected && S.initLoaded ? unit(pos.distanceTo(TARGET)) : '—';
+  $('imu-drift').textContent = S.connected ? (S.drift>0.4 ? '⚠ ' : '') + fmt(S.drift,2) + ' m' : '—';
+  const lockText = {none:'No stream', searching:'Searching for beacon', seen:'Beacon seen', locked:'Locked on beacon'}[cv.state] || cv.state;
+  const lockIc = {none:'○', searching:'◌', seen:'◐', locked:'◉'}[cv.state] || '○';
+  $('lock-t').textContent = lockText; $('lock').querySelector('.ic').textContent = lockIc;
+  $('conf-fill').style.width = (cv.conf*100)+'%'; $('conf-out').textContent = fmt(cv.conf,2);
+  const seen = cv.state==='seen'||cv.state==='locked';
+  $('cv-err').textContent = seen ? sgn(cv.ex,0)+', '+sgn(cv.ey,0)+' px' : '—';
+  $('cv-norm').textContent = seen ? sgn(cv.ex/(S.cvW/2),3)+', '+sgn(cv.ey/(S.cvH/2),3) : '—';
+  $('cv-fin').textContent = seen && (S.phase==='cv_homing'||S.phase==='handover') ? 'yaw '+sgn(yawCmd,1)+'°, pitch '+sgn(pitchCmd,1)+'°' : '—';
+  $('cv-fps').textContent = S.connected ? fmt(S.cam.fps,0)+' fps · '+fmt(S.cam.cv_ms,0)+' ms' : '—';
+  $('cv-src').textContent = S.connected ? (S.tel && S.tel.cam.yolo ? 'YOLO nano loaded; IR blob is the fallback.' : 'IR blob detector (no YOLO weights loaded).') : '';
+  $('cv-alt').textContent = !S.connected ? 'No camera stream.' : seen ? 'Beacon at ' + Math.round(S.cvW/2+cv.ex) + ', ' + Math.round(S.cvH/2+cv.ey) + ' of ' + S.cvW + '×' + S.cvH + ': ' + Math.abs(Math.round(cv.ex)) + ' px ' + (cv.ex>=0?'right':'left') + ', ' + Math.abs(Math.round(cv.ey)) + ' px ' + (cv.ey>=0?'below':'above') + ' centre. Confidence ' + fmt(cv.conf,2) + '.' : 'Dark IR frame, no beacon detected.';
+  const g = (i, act, cmdv) => { const a = $('g'+i+'a'), cm = $('g'+i+'c'); const pa = act/60*100; a.style.left = (act>=0?50:50+pa)+'%'; a.style.width = Math.abs(pa)+'%'; cm.style.left = (50+cmdv/60*100)+'%'; $('f'+i).textContent = sgn(act,1)+'°'; };
+  g(0,pitch,pitchCmd); g(2,pitch,pitchCmd); g(1,yaw,yawCmd); g(3,yaw,yawCmd);
+  $('fin-yaw').textContent = sgn(yawCmd,1)+'° → '+sgn(yaw,1)+'°'; $('fin-pitch').textContent = sgn(pitchCmd,1)+'° → '+sgn(pitch,1)+'°';
+  $('fin-rtt').textContent = S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : '—'; $('fin-pk').textContent = S.connected ? S.sent+' / '+S.acked : '—'; $('fin-batt').textContent = S.batt != null ? fmt(S.batt,2)+' V' : '—';
+  if (S.launchPending != null && S.phase === 'armed' && !countdown) { $('arm-msg').textContent = 'Waiting for the accelerometer to see the launch: ' + Math.ceil(S.launchPending) + ' s left.'; }
+  if (!S.paused) { charts.forEach(ch => ch.update(S.hist, snap ? snap.t : null)); }
+}
+let lastReadout = 0;
+function updateReadout(){
+  if (S.t - lastReadout < 2) return; lastReadout = S.t;
+  const snap = current(); const pos = snap ? snap.pos : S.pos; const ph = PHASES[phaseIdx(snap ? snap.phase : S.phase)].label;
+  let txt;
+  if (!S.connected) txt = 'Not connected. Connect the fish to start receiving position data.';
+  else if (!S.initLoaded) txt = 'Connected, ' + ph + '. No mission set yet.';
+  else if (S.launchT==null) txt = 'On the launch point, ' + ph + '. Target is ' + unit(PATH_LEN) + ' away, ' + unit(TARGET.y) + ' up.';
+  else { const d = pos.distanceTo(TARGET); const side = S.cv.ex; txt = ph + (FLYING.has(S.phase)?' at '+Math.round((snap?snap.s:S.s)*100)+' %':'') + '. Fish is ' + unit(pos.y) + ' up and ' + unit(d) + ' from the target' + ((S.cv.state==='seen'||S.cv.state==='locked') ? ', beacon ' + Math.abs(Math.round(side/10)) + '° ' + (side>=0?'right':'left') + ' of the nose.' : '.'); }
+  $('readout').textContent = txt;
+}
+
+/* ================= IR frame (annotated MJPEG from the ground station) ================= */
+function updateIR(){
+  const img = $('ir'); const ns = $('ir-nostream');
+  if (S.connected && !S.paused) { if (!img.getAttribute('src')) img.src = '/video_feed?' + Date.now(); ns.hidden = true; }
+  else { img.removeAttribute('src'); ns.hidden = false; ns.textContent = S.paused ? 'Paused' : 'No stream'; }
+}
+
+/* ================= charts ================= */
+const NS = 'http://www.w3.org/2000/svg';
+function el(n, attrs){ const e = document.createElementNS(NS, n); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function makeChart(root, opt){
+  const svg = root.querySelector('svg'), tip = root.querySelector('.tip'), tableWrap = root.querySelector('.chart-table'), tbtn = root.querySelector('button[aria-expanded]');
+  const W=320,H=100,ML=34,MR=10,MT=8,MB=16; svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  const grid = el('g',{class:'grid'}), axis = el('g',{class:'axis'}); const area = el('path',{class:'area',fill:opt.color}); const line = el('path',{class:'series',stroke:opt.color});
+  const endDot = el('circle',{class:'dot',r:4,fill:opt.color}); const hair = el('line',{class:'hair',y1:MT,y2:H-MB,visibility:'hidden'}); const hDot = el('circle',{class:'dot',r:4,fill:opt.color,visibility:'hidden'});
+  const hit = el('rect',{x:ML,y:MT,width:W-ML-MR,height:H-MT-MB,fill:'transparent'});
+  svg.append(grid, axis, area, line, endDot, hair, hDot, hit);
+  let data = [], hover = null, focused = false, t0=0, t1=30, ymax=1;
+  const xs = t => ML + (t-t0)/(t1-t0)*(W-ML-MR), ys = v => H-MB - (v/ymax)*(H-MT-MB);
+  function nice(v){ if (v<=0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v/p; const n = m<=1?1:m<=2?2:m<=5?5:10; return n*p; }
+  function render(){
+    grid.replaceChildren(); axis.replaceChildren();
+    [0,0.5,1].forEach(f => { const y = ys(f*ymax); grid.appendChild(el('line',{x1:ML,x2:W-MR,y1:y,y2:y})); const t = el('text',{x:ML-4,y:y+3,'text-anchor':'end'}); t.textContent = opt.fmt(f*ymax); axis.appendChild(t); });
+    const tl = el('text',{x:ML,y:H-4}); tl.textContent = '−30 s'; const tr = el('text',{x:W-MR,y:H-4,'text-anchor':'end'}); tr.textContent = 'now'; axis.append(tl,tr);
+    if (data.length<2) { area.setAttribute('d',''); line.setAttribute('d',''); endDot.setAttribute('visibility','hidden'); return; }
+    let d = ''; data.forEach((p,i) => { d += (i?'L':'M') + xs(p.t).toFixed(1) + ' ' + ys(p.y).toFixed(1); });
+    line.setAttribute('d', d); area.setAttribute('d', d + 'L' + xs(data[data.length-1].t).toFixed(1) + ' ' + (H-MB) + 'L' + xs(data[0].t).toFixed(1) + ' ' + (H-MB) + 'Z');
+    const last = data[data.length-1]; endDot.setAttribute('cx', xs(last.t)); endDot.setAttribute('cy', ys(last.y)); endDot.setAttribute('visibility','visible');
+    if (hover!=null) showHover();
+  }
+  function showHover(){ const p = data[hover]; if (!p) { hideHover(); return; } hair.setAttribute('x1',xs(p.t)); hair.setAttribute('x2',xs(p.t)); hair.setAttribute('visibility','visible'); hDot.setAttribute('cx',xs(p.t)); hDot.setAttribute('cy',ys(p.y)); hDot.setAttribute('visibility','visible');
+    tip.replaceChildren(); const s = document.createElement('strong'); s.textContent = opt.fmt(p.y) + ' ' + opt.unit; tip.append(s, document.createTextNode(' at t+' + p.t.toFixed(1) + ' s')); tip.classList.add('on');
+    const rect = svg.getBoundingClientRect(); const px = (xs(p.t)/W)*rect.width; tip.style.left = clamp(px - tip.offsetWidth/2, 0, rect.width - tip.offsetWidth) + 'px'; tip.style.top = (svg.offsetTop - 30) + 'px'; }
+  function hideHover(){ hover = null; hair.setAttribute('visibility','hidden'); hDot.setAttribute('visibility','hidden'); tip.classList.remove('on'); }
+  hit.addEventListener('pointermove', e => { if (!data.length) return; const rect = svg.getBoundingClientRect(); const x = (e.clientX-rect.left)/rect.width*W; const t = t0 + (x-ML)/(W-ML-MR)*(t1-t0); let best=0, bd=1e9; data.forEach((p,i)=>{ const d=Math.abs(p.t-t); if(d<bd){bd=d;best=i;} }); hover = best; showHover(); });
+  hit.addEventListener('pointerleave', () => { if (!focused) hideHover(); });
+  svg.addEventListener('focus', () => { focused = true; if (data.length) { hover = data.length-1; showHover(); } });
+  svg.addEventListener('blur', () => { focused = false; hideHover(); });
+  svg.addEventListener('keydown', e => { if (!data.length) return; if (e.key==='ArrowLeft') { hover = clamp((hover??data.length-1)-1,0,data.length-1); showHover(); e.preventDefault(); } else if (e.key==='ArrowRight') { hover = clamp((hover??data.length-1)+1,0,data.length-1); showHover(); e.preventDefault(); } else if (e.key==='Escape') { hideHover(); } });
+  tbtn.addEventListener('click', () => { const open = tbtn.getAttribute('aria-expanded')!=='true'; tbtn.setAttribute('aria-expanded', String(open)); tbtn.textContent = open ? 'Hide table' : 'Show table'; tableWrap.hidden = !open; if (open) renderTable(); });
+  function renderTable(){ tableWrap.replaceChildren(); const tb = document.createElement('table'); const cap = document.createElement('caption'); cap.className='sr-only'; cap.textContent = opt.label + ', last 10 samples'; tb.appendChild(cap); const thead = document.createElement('thead'); const tr = document.createElement('tr'); ['t (s)', opt.label + ' (' + opt.unit + ')'].forEach(h => { const th = document.createElement('th'); th.scope='col'; th.textContent = h; tr.appendChild(th); }); thead.appendChild(tr); tb.appendChild(thead); const tbody = document.createElement('tbody'); const rows = data.filter((_,i)=> i % 10 === 0 || i===data.length-1).slice(-10); rows.forEach(p => { const r = document.createElement('tr'); [p.t.toFixed(1), opt.fmt(p.y)].forEach(v => { const td = document.createElement('td'); td.textContent = v; r.appendChild(td); }); tbody.appendChild(r); }); if (!rows.length) { const r = document.createElement('tr'); const td = document.createElement('td'); td.colSpan=2; td.textContent='No samples yet.'; r.appendChild(td); tbody.appendChild(r); } tb.appendChild(tbody); tableWrap.appendChild(tb); }
+  return { update(hist, tEnd){ const all = hist.map(h => ({t:h.t, y:opt.get(h)})).filter(p => p.y!=null); const end = tEnd!=null ? tEnd : (all.length ? all[all.length-1].t : 0); t1 = Math.max(30, end); t0 = t1-30; data = all.filter(p => p.t>=t0 && p.t<=t1); ymax = nice(Math.max(opt.min||0, ...data.map(p=>p.y), 0)); const last = data[data.length-1]; root.querySelector('.now').textContent = last ? opt.fmt(last.y) + ' ' + opt.unit : '—'; svg.setAttribute('aria-label', opt.label + ' over the last 30 seconds' + (last ? ', latest ' + opt.fmt(last.y) + ' ' + opt.unit : ', no data yet')); render(); if (!tableWrap.hidden) renderTable(); } };
+}
+const chartColor = () => getComputedStyle(document.documentElement).getPropertyValue('--imu').trim();
+const charts = [
+  makeChart($('chart-dist'), { label:'Distance to target', unit:'m', color:'var(--imu)', get:h=>h.dist, fmt:v=>v.toFixed(1), min:1 }),
+  makeChart($('chart-err'),  { label:'Vision error', unit:'px', color:'var(--cv)', get:h=> (h.cv.state==='seen'||h.cv.state==='locked') ? h.err : null, fmt:v=>v.toFixed(0), min:10 }),
+];
+
+/* ================= 3D view ================= */
+const wrap = $('view-wrap'), canvas = $('view3d');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(50, 4/3, 0.1, 100);
+const tok = (n) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(n).trim());
+const hemi = new THREE.HemisphereLight(0xffffff, 0x334455, 0.9); scene.add(hemi); const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(4,10,6); scene.add(sun);
+const pad = new THREE.Mesh(new THREE.RingGeometry(0.3,0.4,32), new THREE.MeshBasicMaterial({side:THREE.DoubleSide})); pad.rotation.x = -Math.PI/2; pad.position.y = 0.01; scene.add(pad);
+const planned = new THREE.Line(new THREE.BufferGeometry().setFromPoints([LAUNCH, TARGET]), new THREE.LineDashedMaterial({dashSize:0.25, gapSize:0.15})); planned.computeLineDistances(); scene.add(planned);
+let grid = new THREE.GridHelper(12, 12); scene.add(grid);
+const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 14), new THREE.MeshBasicMaterial()); beacon.position.copy(TARGET); scene.add(beacon);
+const halo = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 14), new THREE.MeshBasicMaterial({transparent:true, opacity:0.18})); halo.position.copy(TARGET); scene.add(halo);
+const beaconLight = new THREE.PointLight(0xffa060, 0.8, 6); beaconLight.position.copy(TARGET); scene.add(beaconLight);
+const targetPole = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V(TARGET.x,0,TARGET.z), TARGET]), new THREE.LineBasicMaterial({transparent:true, opacity:0.4})); scene.add(targetPole);
+let handoverRing = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.035, 8, 40), new THREE.MeshBasicMaterial()); scene.add(handoverRing);
+function placeHandoverRing(){ handoverRing.position.copy(LAUNCH).addScaledVector(DIR, S.threshold*PATH_LEN); handoverRing.lookAt(TARGET); }
+placeHandoverRing();
+const estMarker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), new THREE.MeshBasicMaterial({wireframe:true})); estMarker.visible = false; scene.add(estMarker);
+function placeMissionObjects(){
+  beacon.position.copy(TARGET); halo.position.copy(TARGET); beaconLight.position.copy(TARGET);
+  planned.geometry.setFromPoints([LAUNCH, TARGET]); planned.computeLineDistances();
+  targetPole.geometry.setFromPoints([new V(TARGET.x,0,TARGET.z), TARGET]);
+  const span = Math.max(12, 2*Math.ceil(Math.max(Math.abs(TARGET.x), Math.abs(TARGET.z), TARGET.y*0.6) + 2));
+  scene.remove(grid); grid = new THREE.GridHelper(span, span); scene.add(grid); applyThemeTo3D();
+  PRESETS.side.r = Math.max(12, PATH_LEN*1.5); PRESETS.top.r = Math.max(13, PATH_LEN*1.6); if (cam.mode !== 'follow') Object.assign(cam, PRESETS[cam.mode]);
+  placeHandoverRing();
+}
+window.placeMissionObjects = placeMissionObjects;
+// trails
+function makeTrail(){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2400*3), 3)); g.setDrawRange(0,0); return new THREE.Line(g, new THREE.LineBasicMaterial({linewidth:2})); }
+const trailImu = makeTrail(), trailCv = makeTrail(); scene.add(trailImu, trailCv); let nImu = 0, nCv = 0;
+function resetTrails(){ nImu = 0; nCv = 0; trailImu.geometry.setDrawRange(0,0); trailCv.geometry.setDrawRange(0,0); S._lateWarned=false; S._driftWarned=false; }
+function appendTrail(h){ const cv = h.phase!=='imu_glide'; const tr = cv ? trailCv : trailImu; let n = cv ? nCv : nImu; if (n >= 2400) return; const a = tr.geometry.attributes.position; if (cv && nCv===0 && nImu>0) { a.setXYZ(0, S.hist[S.hist.length-2].pos.x, S.hist[S.hist.length-2].pos.y, S.hist[S.hist.length-2].pos.z); n = 1; } a.setXYZ(n, h.pos.x, h.pos.y, h.pos.z); n++; a.needsUpdate = true; tr.geometry.setDrawRange(0, n); if (cv) nCv = n; else nImu = n; }
+// fish
+const fish = new THREE.Group();
+const bodyMat = new THREE.MeshStandardMaterial({roughness:0.45, metalness:0.05}); const finMat = new THREE.MeshStandardMaterial({roughness:0.6, side:THREE.DoubleSide});
+const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 28, 18), bodyMat); body.scale.set(0.3, 0.3, 1); fish.add(body);
+const tail = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 12), bodyMat); tail.rotation.x = -Math.PI/2; tail.position.z = -0.44; fish.add(tail);
+const eyeMat = new THREE.MeshBasicMaterial({color:0x111111}); [[-0.07,0.05],[0.07,0.05]].forEach(([x,y]) => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), eyeMat); e.position.set(x, y, 0.27); fish.add(e); });
+const finP0 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.16), finMat); finP0.position.set(0.2, 0, -0.14);
+const finP2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.16), finMat); finP2.position.set(-0.2, 0, -0.14);
+const finY1 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.16), finMat); finY1.position.set(0, 0.15, -0.14);
+const finY3 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.16), finMat); finY3.position.set(0, -0.15, -0.14);
+fish.add(finP0, finP2, finY1, finY3); fish.position.copy(LAUNCH).add(new V(0,0.3,0)); scene.add(fish);
+function applyThemeTo3D(){
+  const ground = tok('--ground'), line = tok('--line'), lineStrong = tok('--line-strong'), muted = tok('--muted'), accent = tok('--accent'), imu = tok('--imu'), cv = tok('--cv');
+  scene.background = ground; grid.material.color = line; grid.material.vertexColors = false; pad.material.color = muted; planned.material.color = muted; beacon.material.color = cv; halo.material.color = cv; targetPole.material.color = lineStrong;
+  handoverRing.material.color = cv; estMarker.material.color = imu; trailImu.material.color = imu; trailCv.material.color = cv; bodyMat.color = accent; finMat.color = accent.clone().lerp(new THREE.Color(0xffffff), 0.35);
+}
+window.applyThemeTo3D = applyThemeTo3D; applyThemeTo3D();
+new MutationObserver(applyThemeTo3D).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme','data-contrast']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyThemeTo3D);
+// orbit camera
+const cam = { mode:'follow', theta:-2.3, phi:1.15, r:4.5, cur:{theta:-2.3, phi:1.15, r:4.5}, target:new V(), curTarget:new V(0,1,0) };
+const PRESETS = { follow:{theta:-2.3, phi:1.15, r:4.5}, side:{theta:Math.PI/2, phi:1.3, r:12}, top:{theta:-0.2, phi:0.12, r:13} };
+function setPreset(m){ cam.mode = m; Object.assign(cam, PRESETS[m]); ['follow','side','top'].forEach(k => $('view-'+k).setAttribute('aria-pressed', String(k===m))); $('view-badge').textContent = m[0].toUpperCase()+m.slice(1); }
+['follow','side','top'].forEach(k => $('view-'+k).addEventListener('click', () => setPreset(k)));
+let drag = null;
+wrap.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY}; wrap.setPointerCapture(e.pointerId); });
+wrap.addEventListener('pointermove', e => { if (!drag) return; cam.theta -= (e.clientX-drag.x)*0.008; cam.phi = clamp(cam.phi - (e.clientY-drag.y)*0.006, 0.08, 1.5); drag = {x:e.clientX, y:e.clientY}; });
+wrap.addEventListener('pointerup', () => drag = null); wrap.addEventListener('pointercancel', () => drag = null);
+wrap.addEventListener('wheel', e => { e.preventDefault(); cam.r = clamp(cam.r * (1 + Math.sign(e.deltaY)*0.1), 1.5, 30); }, {passive:false});
+wrap.addEventListener('keydown', e => { const k = e.key; let used = true;
+  if (k==='ArrowLeft') cam.theta += 0.12; else if (k==='ArrowRight') cam.theta -= 0.12; else if (k==='ArrowUp') cam.phi = clamp(cam.phi-0.08,0.08,1.5); else if (k==='ArrowDown') cam.phi = clamp(cam.phi+0.08,0.08,1.5);
+  else if (k==='+' || k==='=') cam.r = clamp(cam.r*0.9,1.5,30); else if (k==='-' || k==='_') cam.r = clamp(cam.r*1.1,1.5,30); else if (k==='Home') setPreset(cam.mode); else used = false;
+  if (used) e.preventDefault(); });
+function resize(){ const w = wrap.clientWidth, h = wrap.clientHeight; if (!w||!h) return; renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(wrap); resize();
+$('btn-pause').addEventListener('click', () => { S.paused = !S.paused; updateIR(); $('btn-pause').setAttribute('aria-pressed', String(S.paused)); $('btn-pause').textContent = S.paused ? 'Resume view updates' : 'Pause view updates'; log(S.paused ? 'View updates paused (telemetry text continues).' : 'View updates resumed.'); if (!S.paused) render3D(); });
+let lastFrame = 0;
+function render3D(){
+  const snap = current(); const pos = snap ? snap.pos : S.pos, est = snap ? snap.est : S.est, att = snap ? snap.att : S.att; const yaw = snap ? snap.yaw : S.yaw, pitch = snap ? snap.pitch : S.pitch;
+  const flying = S.launchT!=null;
+  const fpos = flying ? pos : LAUNCH.clone().add(new V(0,0.3,0));
+  fish.position.copy(fpos);
+  if (flying) { const dirv = DIR.clone().applyAxisAngle(UPP, -att.yaw*0.0 ); fish.lookAt(fpos.clone().add(new V(Math.sin(att.yaw*Math.PI/180)*Math.cos(att.pitch*Math.PI/180), Math.sin(att.pitch*Math.PI/180), Math.cos(att.yaw*Math.PI/180)*Math.cos(att.pitch*Math.PI/180)))); fish.rotateZ(att.roll*Math.PI/180); }
+  else { fish.lookAt(fpos.clone().add(DIR)); }
+  finP0.rotation.x = -pitch*Math.PI/180; finP2.rotation.x = -pitch*Math.PI/180; finY1.rotation.y = yaw*Math.PI/180; finY3.rotation.y = yaw*Math.PI/180;
+  const driftM = est.distanceTo(pos); estMarker.visible = flying && driftM > 0.05; estMarker.position.copy(est);
+  const ease = reduceMotion() ? 1 : 0.12;
+  const target = cam.mode==='follow' ? fpos : new V().addVectors(LAUNCH, TARGET).multiplyScalar(0.5);
+  cam.curTarget.lerp(target, ease); cam.cur.theta += (cam.theta-cam.cur.theta)*ease; cam.cur.phi += (cam.phi-cam.cur.phi)*ease; cam.cur.r += (cam.r-cam.cur.r)*ease;
+  const c = cam.cur; camera.position.set(c.r*Math.sin(c.phi)*Math.cos(c.theta), c.r*Math.cos(c.phi), c.r*Math.sin(c.phi)*Math.sin(c.theta)).add(cam.curTarget); camera.lookAt(cam.curTarget);
+  halo.scale.setScalar(reduceMotion() ? 1 : 1 + 0.12*Math.sin(S.t*3));
+  renderer.render(scene, camera);
+}
+function frame(ts){ requestAnimationFrame(frame); if (!S.tel) S.t = ts/1000; if (S.paused) return; const minGap = reduceMotion() ? 100 : 0; if (ts - lastFrame < minGap) return; lastFrame = ts; render3D(); }
+requestAnimationFrame(frame);
+
+/* ================= replay ================= */
+function enableReplay(){ if (S.hist.length < 2) return; $('replay').classList.add('on'); $('scrub').max = S.hist.length-1; $('scrub').value = S.hist.length-1; $('scrub-t').textContent = 't = ' + S.hist[S.hist.length-1].t.toFixed(1) + ' s (live end)'; }
+$('scrub').addEventListener('input', e => { S.scrub = +e.target.value; const h = S.hist[S.scrub]; if (h) $('scrub-t').textContent = 't = ' + h.t.toFixed(1) + ' s · ' + PHASES[phaseIdx(h.phase)].label; updateDOM(); if (!S.paused) render3D(); });
+$('btn-live').addEventListener('click', () => { S.scrub = null; $('scrub').value = $('scrub').max; $('scrub-t').textContent = 't = ' + (S.hist.length? S.hist[S.hist.length-1].t.toFixed(1):'0.0') + ' s (live end)'; updateDOM(); });
+
+/* ================= keyboard shortcuts ================= */
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName||'').toLowerCase(); const typing = tag==='input' || tag==='textarea' || tag==='select';
+  const dlgOpen = $('dlg-settings').open || $('dlg-keys').open;
+  if (e.key==='?' && !typing) { e.preventDefault(); if (!dlgOpen) $('dlg-keys').showModal(); return; }
+  if (!settings.keys || typing || dlgOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k==='x') { abort(); } else if (k==='a') { if (!$('btn-arm').disabled) $('btn-arm').click(); } else if (k==='l') { if (!$('btn-launch').disabled) $('btn-launch').click(); }
+  else if (k==='n') { if (!$('btn-neutral').disabled) $('btn-neutral').click(); } else if (k==='p') { $('btn-pause').click(); }
+  else if (k==='1') setPreset('follow'); else if (k==='2') setPreset('side'); else if (k==='3') setPreset('top'); else return;
+  e.preventDefault();
+});
+
+/* ================= main loop ================= */
+applySettings(); updateControls(); setThresholdUI(80); placeMissionObjects(); updateIR();
+$('btn-pause').addEventListener('click', updateIR);
+log('GCS page loaded. Connecting to the ground station…');
+connectWs();
+setInterval(() => { if (!S.tel) S.t = performance.now()/1000; updateDOM(); updateReadout(); }, 100);
+})();
+</script>
