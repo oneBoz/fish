@@ -239,6 +239,16 @@ class ImuEstimator:
         with self.lock:
             self.launched = False
 
+    def advance_along(self, target, speed, dt):
+        """No IMU samples: move the estimate along the planned path at the entered speed (time-based)."""
+        with self.lock:
+            tgt = np.asarray(target, dtype=float)
+            n = float(np.linalg.norm(tgt))
+            if n < 1e-6 or not speed or dt <= 0:
+                return
+            self.pos += tgt / n * float(speed) * dt
+            self.drift += 0.05 * dt
+
     def reset_flight(self):
         """Back to the launch point for the next mission; keeps attitude, biases and calibration."""
         with self.lock:

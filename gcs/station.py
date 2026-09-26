@@ -21,11 +21,20 @@ from collections import deque
 
 import numpy as np
 
+from .gimbal import Gimbal
 from .guidance import FLYING, Guidance
 from .imu import G, ImuEstimator
 from .imu import euler_deg
 from .link import FakeFish, FishLink, SimCamera
 from .vision import MjpegSource, Vision
+
+def mjpeg_url(cam):
+    """'172.20.10.13' -> http://172.20.10.13:81/stream ; 'host:8181' keeps the port ; full URLs pass through."""
+    cam = str(cam).strip()
+    if cam.startswith("http://") or cam.startswith("https://"):
+        return cam
+    return "http://%s/stream" % (cam if ":" in cam else cam + ":81")
+
 
 DEFAULT_CFG = {
     "handover_threshold": 0.80, "beacon_frames_needed": 5, "conf_needed": 0.60, "handover_blend_s": 1.0,
@@ -37,11 +46,16 @@ DEFAULT_CFG = {
     # vision mode (design section 15): "beacon" = brightest source, "swarm" = follow a cluster's centroid
     "vision_mode": "beacon", "cluster_radius": 200, "swarm_match": 60, "max_sources": 32,
     "yolo_conf": 0.35, "yolo_imgsz": 320, "yolo_classes": "", "sim_quads": 4,
+    # camera gimbal (pan GPIO 18, tilt GPIO 17 on the fin board): keeps the centroid centred
+    "gimbal_on": True, "gimbal_kp": 0.5, "gimbal_ki": 0.0, "gimbal_deadband_px": 6, "gimbal_max_step": 6.0, "gimbal_return_s": 1.0,
+    "invert_pan": False, "invert_tilt": False, "cam_hfov": 62.0, "cam_vfov": 49.0,
+    "pan_min": 5.0, "pan_max": 175.0, "pan_home": 90.0, "tilt_min": 35.0, "tilt_max": 75.0, "tilt_home": 55.0,
 }
 TUNABLE = {"kp_imu", "kp", "ki", "deadband_px", "max_step", "fin_max", "invert_yaw", "invert_pitch",
            "blur", "min_area", "thresh_mode", "rel_threshold", "min_contrast", "threshold",
            "beacon_frames_needed", "conf_needed", "handover_blend_s",
-           "vision_mode", "cluster_radius", "swarm_match", "max_sources", "yolo_conf", "yolo_classes", "sim_quads"}
+           "vision_mode", "cluster_radius", "swarm_match", "max_sources", "yolo_conf", "yolo_classes", "sim_quads",
+           "gimbal_on", "gimbal_kp", "gimbal_ki", "gimbal_deadband_px", "invert_pan", "invert_tilt"}
 
 
 class GroundStation:
@@ -51,13 +65,18 @@ class GroundStation:
         self.lock = threading.RLock()
         self.imu = ImuEstimator(axes=args.imu_axes)
         self.guidance = Guidance(self.cfg)
+        self.gimbal = Gimbal(self.cfg)
         self.link = None
+        self.sim = None            # FakeFish: the whole fish (--fake) or a ghost flying the real fins (camera "sim")
+        self.mirror = None         # optional second FishLink (--fins-out IP): physical fins follow every command
+        self._mirror_alive = None
         self.cam = None
         self.vision = None
         self.connected = False
         self.calibrated = False
         self.selftest_ok = False
         self.selftest_cmd = None
+        self.selftest_running = False
         self.arm_pending_until = None
         self.autolaunch = True
         self.launch_pending_until = None
@@ -68,8 +87,10 @@ class GroundStation:
         self.event_seq = 0
         self.history = deque(maxlen=12000)
         self.launch_time = None
+        self._no_imu_warned = False
         self.telemetry = {}
         self.fin_cmd = (0.0, 0.0)
+        self.cam_cmd = (DEFAULT_CFG["pan_home"], DEFAULT_CFG["tilt_home"])
         self._stop = threading.Event()
         self._last_hist = 0.0
         self.thread = threading.Thread(target=self.loop, daemon=True)
@@ -111,22 +132,53 @@ class GroundStation:
             self.imu.stop()
             if self.link:
                 self.link.home()
+            if self.mirror:
+                self.mirror.home()
+            if self.sim is not None:
+                with self.sim.lock:
+                    self.sim.launched = False      # the simulated fish stops where the mission ended
 
     # ------------------------------------------------------------------ connect
     def connect(self, fin_ip, cam_ip):
         if self.connected:
             return {"ok": False, "error": "Already connected. Disconnect first."}
+        cam_is_sim = str(cam_ip).strip().lower() in ("sim", "fake", "")
         if self.args.fake:
             fish = FakeFish(on_imu=self.imu.update, on_batt=self._on_batt, axes=self.args.imu_axes)
             fish.set_swarm(self.cfg["vision_mode"] == "swarm", self.cfg["sim_quads"])
             self.link = fish
-            self.cam = SimCamera(fish.cam)      # browser-rendered fish view when the page streams it
-            fish.start(); self.cam.start()
+            self.sim = fish
+            fish.start()
+            if cam_is_sim:
+                self.cam = SimCamera(fish.cam)      # browser-rendered fish view when the page streams it
+            else:
+                # simulated flight, real camera: vision runs on the ESP32-CAM stream while the fish is simulated
+                self.cam = MjpegSource(mjpeg_url(cam_ip))
+                self.log("Simulated flight with the real camera at %s: hold the beacon or quads in front of it for the hand-over." % cam_ip)
+            self.cam.start()
         else:
             self.link = FishLink(fin_ip, on_imu=self.imu.update, on_batt=self._on_batt)
             self.link.start()
-            self.cam = MjpegSource("http://%s:81/stream" % cam_ip)
-            self.cam.start()
+            if cam_is_sim:
+                # Real fin board, simulated camera: a ghost fish flies the commanded fins and the fake
+                # camera (or the page's rendered view) shows what it would see. The ghost also feeds IMU
+                # samples while the real board sends none.
+                ghost = FakeFish(on_imu=self._ghost_imu, on_batt=None, axes=self.args.imu_axes)
+                ghost.set_swarm(self.cfg["vision_mode"] == "swarm", self.cfg["sim_quads"])
+                self.sim = ghost
+                self.cam = SimCamera(ghost.cam)
+                ghost.start(); self.cam.start()
+                self.log("Camera simulated: a ghost fish flies the fins you command on the real board at %s." % fin_ip)
+            else:
+                self.sim = None
+                self.cam = MjpegSource(mjpeg_url(cam_ip))
+                self.cam.start()
+        fins_out = getattr(self.args, "fins_out", None)
+        if fins_out:
+            self.mirror = FishLink(fins_out, on_imu=None, on_batt=None)
+            self.mirror.start()
+            self.mirror.send(0.0, 0.0)
+            self.log("Fin commands are mirrored to the physical fin board at %s (its link does not affect the mission)." % fins_out)
         self.vision = Vision(self.cam, self.cfg, yolo_weights=self.args.yolo)
         self.vision.start()
         if self.vision.yolo_error:
@@ -147,21 +199,23 @@ class GroundStation:
             time.sleep(0.1)
         cam_ok = self.cam.latest() is not None
         self.log("Fin board ACK %.0f ms.%s" % (self.link.rtt_ms or 0, " Camera streaming." if cam_ok else " Camera: no frame yet from %s (stream keeps retrying)." % cam_ip), "good" if cam_ok else "warn")
-        if self.mission["set"] and self.link.fake:
-            self.link.set_mission(self.mission["speed"], self.mission["target"])
+        if self.mission["set"] and self.sim is not None:
+            self.sim.set_mission(self.mission["speed"], self.mission["target"])
         self.set_phase("ready")
         return {"ok": True, "cam": cam_ok, "rtt_ms": self.link.rtt_ms}
 
     def disconnect(self, quiet=False):
         if self.phase in FLYING:
             return {"ok": False, "error": "Cannot disconnect while flying. Abort first."}
-        for obj in (self.vision, self.cam, self.link):
+        for obj in (self.vision, self.cam, self.link, self.sim, self.mirror):
             if obj is not None:
                 try:
+                    if obj is self.mirror:
+                        obj.home()
                     obj.stop()
                 except Exception:  # noqa: BLE001
                     pass
-        self.vision = self.cam = self.link = None
+        self.vision = self.cam = self.link = self.sim = self.mirror = None
         self.connected = False
         self.calibrated = False
         self.selftest_ok = False
@@ -172,10 +226,17 @@ class GroundStation:
     def _on_batt(self, v):
         self.batt_v = v
 
+    def _ghost_imu(self, a, g, t):
+        """IMU samples from the ghost fish, used only while the real fin board streams none."""
+        link = self.link
+        if link is not None and getattr(link, "last_imu_time", None) is not None and (t - link.last_imu_time) < 0.5:
+            return
+        self.imu.update(a, g, t)
+
     def push_sim_frame(self, data):
         """A JPEG of the fish's point of view rendered by the page (fake mode only)."""
         cam = self.cam
-        if not self.args.fake or not isinstance(cam, SimCamera):
+        if self.sim is None or not isinstance(cam, SimCamera):
             return False
         return cam.push(data)
 
@@ -193,7 +254,10 @@ class GroundStation:
             return {"ok": False, "error": str(e)}
 
     def cmd_connect(self, d):
-        return self.connect(d.get("fin_ip", self.args.fin_ip), d.get("cam_ip", self.args.cam_ip))
+        return self.connect(d.get("fin_ip") or self.args.fin_ip, d.get("cam_ip") or self.default_cam_ip())
+
+    def default_cam_ip(self):
+        return self.args.cam_ip or ("sim" if self.args.fake else "172.20.10.13")
 
     def cmd_disconnect(self, d):
         return self.disconnect()
@@ -212,11 +276,10 @@ class GroundStation:
         if len(target) != 3 or math.hypot(*target) < 0.5:
             return {"ok": False, "error": "Target must be at least 0.5 m from the launch point."}
         self.mission = {"speed": speed, "target": target, "set": True, "source": d.get("source") or "typed in"}
-        if self.link is not None:
-            if self.link.fake:
-                self.link.set_mission(speed, target)
-            elif self.args.guidance == "fish":
-                self.link.send_text("MISSION,%.2f,%.2f,%.2f,%.2f" % (speed, *target))
+        if self.sim is not None:
+            self.sim.set_mission(speed, target)
+        if self.link is not None and not self.args.fake and self.args.guidance == "fish":
+            self.link.send_text("MISSION,%.2f,%.2f,%.2f,%.2f" % (speed, *target))
         plen = math.hypot(*target)
         self.log("Mission set: target (%.2f, %.2f, %.2f) m, %.2f m at %.1f m/s, expected %.1f s. Hand-over at %.0f %%." % (*target, plen, speed, plen / speed, self.cfg["handover_threshold"] * 100), "good")
         return {"ok": True, "path_len": plen, "eta_s": plen / speed}
@@ -243,19 +306,30 @@ class GroundStation:
     def cmd_selftest(self, d):
         if self.phase != "ready":
             return {"ok": False, "error": "Self-test only when Ready."}
+        if self.selftest_running:
+            return {"ok": False, "error": "A self-test is already running."}
+        self.selftest_running = True
+        self.selftest_cmd = (0, 0, self.cfg["pan_home"], self.cfg["tilt_home"])   # claim the fins before the thread starts
         threading.Thread(target=self._run_selftest, daemon=True).start()
         return {"ok": True}
 
     def _run_selftest(self):
-        self.log("Fin self-test: wiggling yaw pair then pitch pair.")
+        self.log("Fin self-test: wiggling yaw pair, pitch pair, then camera pan and tilt.")
         acked0 = self.link.acked if self.link else 0
-        for step in [(25, 0), (-25, 0), (0, 25), (0, -25), (0, 0)]:
-            self.selftest_cmd = step
-            time.sleep(0.45)
-        self.selftest_cmd = None
+        home = (self.cfg["pan_home"], self.cfg["tilt_home"])
+        steps = [(25, 0) + home, (-25, 0) + home, (0, 25) + home, (0, -25) + home, (0, 0) + home,
+                 (0, 0, self.cfg["pan_min"] + 25, home[1]), (0, 0, self.cfg["pan_max"] - 25, home[1]), (0, 0) + home,
+                 (0, 0, home[0], self.cfg["tilt_min"]), (0, 0, home[0], self.cfg["tilt_max"]), (0, 0) + home]
+        try:
+            for step in steps:
+                self.selftest_cmd = step
+                time.sleep(0.45)
+        finally:
+            self.selftest_cmd = None
+            self.selftest_running = False
         moved = (self.link is not None) and (self.link.acked > acked0)
         self.selftest_ok = moved
-        self.log("Fin self-test passed: fins acknowledged every step." if moved else "Fin self-test failed: no ACKs while wiggling.", "good" if moved else "warn")
+        self.log("Fin self-test passed: fins and camera acknowledged every step." if moved else "Fin self-test failed: no ACKs while wiggling.", "good" if moved else "warn")
 
     ADVISORY_NAMES = {"calibrated": "IMU calibration", "selftest": "fin self-test", "batt": "battery check"}
 
@@ -277,6 +351,8 @@ class GroundStation:
             return {"ok": False, "error": "Already armed."}
         if self.phase != "ready":
             return {"ok": False, "error": "Arm only when Ready."}
+        if self.selftest_running:
+            return {"ok": False, "error": "Wait for the fin self-test to finish."}
         pf = self.preflight()
         if not pf["can_arm"]:
             missing = [n for k, n in (("link", "fin board link"), ("mission", "mission target and speed")) if not pf[k]]
@@ -306,9 +382,11 @@ class GroundStation:
     def cmd_launch(self, d):
         if self.phase != "armed":
             return {"ok": False, "error": "Launch only when Armed."}
-        if self.link and self.link.fake:
-            self.link.launch()
-        elif self.args.guidance == "fish" and self.link:
+        if self.selftest_running:
+            return {"ok": False, "error": "Wait for the fin self-test to finish."}
+        if self.sim is not None:
+            self.sim.launch()
+        if self.link and not self.args.fake and self.args.guidance == "fish":
             self.link.send_text("LAUNCH")
         if self.autolaunch and not (self.link and self.link.fake and False):
             self.launch_pending_until = time.time() + self.cfg["launch_wait_s"]
@@ -320,6 +398,7 @@ class GroundStation:
     def _do_launch(self, why):
         self.launch_pending_until = None
         self.launch_time = time.time()
+        self._no_imu_warned = False
         self.history.clear()
         self.imu.launch(self.mission["speed"])
         self.guidance.fault = None
@@ -341,6 +420,8 @@ class GroundStation:
         self.override["yaw"] = self.override["pitch"] = 0.0
         self.guidance.prev_yaw = self.guidance.prev_pitch = 0.0
         self.link.home()
+        if self.mirror:
+            self.mirror.home()
         self.log("Fins commanded to neutral.")
         return {"ok": True}
 
@@ -383,8 +464,8 @@ class GroundStation:
             return {"ok": False, "error": "vision_mode must be 'beacon' or 'swarm'."}
         self.cfg[k] = v
         if k in ("vision_mode", "sim_quads"):
-            if self.link is not None and self.link.fake:
-                self.link.set_swarm(self.cfg["vision_mode"] == "swarm", self.cfg["sim_quads"])
+            if self.sim is not None:
+                self.sim.set_swarm(self.cfg["vision_mode"] == "swarm", self.cfg["sim_quads"])
             if k == "vision_mode":
                 if self.vision is not None:
                     self.vision.tracker.reset()
@@ -430,12 +511,15 @@ class GroundStation:
         self.override["on"] = False
         self.selftest_cmd = None
         self.guidance.prev_yaw = self.guidance.prev_pitch = 0.0
+        self.gimbal.home()
         self.imu.reset_flight()
         self.launch_time = None
         if self.link:
             self.link.home()
-            if self.link.fake:
-                self.link.reset()
+        if self.mirror:
+            self.mirror.home()
+        if self.sim is not None:
+            self.sim.reset()
         self.set_phase("ready", why, level)
 
     def cmd_new_mission(self, d):
@@ -462,6 +546,11 @@ class GroundStation:
                 self.log("Arm timed out. Press Arm again.")
             if self.connected and link is not None and not link.alive and self.phase in FLYING:
                 self.set_phase("aborted", "fin link lost for more than 1.5 s (fins go neutral on the fish)", "crit")
+            fb = getattr(link, "fin_board_ok", None) if link else None
+            if fb is not None and fb != getattr(self, "_fin_board_was", None):
+                if getattr(self, "_fin_board_was", None) is not None or not fb:
+                    self.log("Head node reports its fin board %s." % ("connected" if fb else "NOT responding on the UART: fins are not being driven"), "good" if fb else "crit")
+                self._fin_board_was = fb
             if self.phase == "armed" and self.launch_pending_until:
                 spike = abs(float(self.imu.last_accel[0])) > self.cfg["launch_detect_g"] * G
                 if spike:
@@ -472,39 +561,64 @@ class GroundStation:
 
             cv, _ = self.vision.latest() if self.vision else (Vision._empty(), None)
             target = self.mission["target"] or [0.0, 1.0, 0.0]
+            no_imu = self.imu.last_sample_time is None or (now - self.imu.last_sample_time) > 0.5
+            if no_imu and self.phase in FLYING and self.launch_time is not None:
+                # Fin board without an IMU stream (pid_fins.ino): estimate progress from the entered speed and
+                # the planned path, and do not steer on a guess; vision takes over when the beacon is seen.
+                self.imu.advance_along(target, self.mission["speed"], dt)
+                if not self._no_imu_warned:
+                    self._no_imu_warned = True
+                    self.log("No IMU stream from the fin board: progress is estimated from speed and time, fins stay neutral until vision takes over. Flash fish_node.ino with the ICM20948 for real dead reckoning.", "warn")
             est = self.imu.snapshot(target)
+            est["no_imu"] = bool(no_imu and self.launch_time is not None)
             link_ok = bool(link and link.alive)
             yaw_cmd = pitch_cmd = 0.0
+            # camera gimbal: follow the centroid whenever something is seen, else return to centre
+            pan_cmd, tilt_cmd = self.gimbal.step(cv, dt) if self.connected else (self.cfg["pan_home"], self.cfg["tilt_home"])
+            cam_off = self.gimbal.camera_offset(getattr(link, "cam_pan", None), getattr(link, "cam_tilt", None))
             if self.phase in FLYING:
                 ovr = (self.override["yaw"], self.override["pitch"]) if self.override["on"] else None
                 if self.args.guidance == "fish" and self.phase == "imu_glide" and ovr is None:
                     # the fish steers itself; still evaluate hand-over
-                    _, _, events = self.guidance.step(dt, est, self.imu.rotation(), target, cv, link_ok, override=(0.0, 0.0))
+                    _, _, events = self.guidance.step(dt, est, self.imu.rotation(), target, cv, link_ok, override=(0.0, 0.0), cam_offset=cam_off)
                     yaw_cmd = pitch_cmd = 0.0
                 else:
-                    yaw_cmd, pitch_cmd, events = self.guidance.step(dt, est, self.imu.rotation(), target, cv, link_ok, override=ovr)
+                    yaw_cmd, pitch_cmd, events = self.guidance.step(dt, est, self.imu.rotation(), target, cv, link_ok, override=ovr, cam_offset=cam_off)
+                    if est.get("no_imu") and self.phase == "imu_glide" and ovr is None:
+                        yaw_cmd = pitch_cmd = 0.0
                 for level, msg in events:
                     self.log(msg, level)
                     if self.phase in ("arrived", "aborted"):
                         self.imu.stop()
             if self.selftest_cmd is not None:
-                yaw_cmd, pitch_cmd = self.selftest_cmd
+                yaw_cmd, pitch_cmd, pan_cmd, tilt_cmd = self.selftest_cmd
             self.fin_cmd = (yaw_cmd, pitch_cmd)
+            self.cam_cmd = (pan_cmd, tilt_cmd)
             if link is not None and self.connected:
                 if not (self.args.guidance == "fish" and self.phase == "imu_glide" and not self.override["on"]):
-                    link.send(yaw_cmd, pitch_cmd)
+                    link.send(yaw_cmd, pitch_cmd, pan_cmd, tilt_cmd)
                 else:
                     link.send_text("PING")
-            self.telemetry = self.build_telemetry(est, cv, link, link_ok, yaw_cmd, pitch_cmd)
+                if self.sim is not None and self.sim is not link:
+                    self.sim.send(yaw_cmd, pitch_cmd, pan_cmd, tilt_cmd)
+                if self.mirror is not None:
+                    self.mirror.send(yaw_cmd, pitch_cmd, pan_cmd, tilt_cmd)
+                    alive = self.mirror.alive
+                    if alive != self._mirror_alive:
+                        if self._mirror_alive is not None or not alive:
+                            self.log("Physical fin board %s: %s" % (self.mirror.addr[0], "link ok" if alive else "no ACK (the simulation continues, the board parks its fins after 1 s)"), "good" if alive else "warn")
+                        self._mirror_alive = alive
+            self.telemetry = self.build_telemetry(est, cv, link, link_ok, yaw_cmd, pitch_cmd, cam_off)
             if self.phase in FLYING and now - self._last_hist >= 0.1:
                 self._last_hist = now
                 self.history.append({"t": round(self.t_mission(), 2), "phase": self.phase, "x": est["x"], "y": est["y"], "z": est["z"],
                                      "progress": est["progress"], "dist": est["dist"], "roll": est["roll"], "pitch": est["pitch"], "yaw": est["yaw"],
                                      "yaw_cmd": round(yaw_cmd, 1), "pitch_cmd": round(pitch_cmd, 1),
                                      "fin_yaw": round(link.fin_yaw, 1) if link else 0, "fin_pitch": round(link.fin_pitch, 1) if link else 0,
-                                     "cv_state": cv["state"], "conf": cv["conf"], "ex_px": cv["ex_px"], "ey_px": cv["ey_px"]})
+                                     "cv_state": cv["state"], "conf": cv["conf"], "ex_px": cv["ex_px"], "ey_px": cv["ey_px"],
+                                     "cam_pan": round(pan_cmd, 1), "cam_tilt": round(tilt_cmd, 1)})
 
-    def build_telemetry(self, est, cv, link, link_ok, yaw_cmd, pitch_cmd):
+    def build_telemetry(self, est, cv, link, link_ok, yaw_cmd, pitch_cmd, cam_off=(0.0, 0.0)):
         m = self.mission
         plen = math.hypot(*m["target"]) if m["set"] else None
         state = cv["state"]
@@ -517,37 +631,48 @@ class GroundStation:
             "phase": self.phase, "progress": est.get("progress", 0.0) if self.phase in FLYING or self.phase in ("arrived",) else 0.0,
             "connected": self.connected, "fake": bool(self.args.fake), "guidance_mode": self.args.guidance,
             "link": {"fin_rtt_ms": None if not link or link.rtt_ms is None else round(link.rtt_ms, 1), "sent": link.sent if link else 0, "acked": link.acked if link else 0,
-                     "alive": link_ok, "imu_age_ms": None if not link or link.imu_age_ms is None else round(link.imu_age_ms), "imu_rate": round(link.imu_rate, 1) if link else 0.0, "error": link.error if link else None},
+                     "alive": link_ok, "imu_age_ms": None if not link or link.imu_age_ms is None else round(link.imu_age_ms), "imu_rate": round(link.imu_rate, 1) if link else 0.0, "error": link.error if link else None,
+                     "fin_board": getattr(link, "fin_board_ok", None) if link else None,
+                     "mirror": None if self.mirror is None else {"ip": self.mirror.addr[0], "alive": self.mirror.alive, "rtt_ms": None if self.mirror.rtt_ms is None else round(self.mirror.rtt_ms, 1), "acked": self.mirror.acked}},
             "cam": {"connected": bool(self.cam and self.cam.connected), "fps": round(self.vision.fps, 1) if self.vision else 0.0, "cv_ms": round(self.vision.proc_ms, 1) if self.vision else 0.0,
                     "error": getattr(self.cam, "error", None) if self.cam else None, "yolo": bool(self.vision and self.vision.yolo),
                     "yolo_kind": self.vision.yolo.kind if self.vision and self.vision.yolo else None, "yolo_error": self.vision.yolo_error if self.vision else None},
             "imu": {"roll": est["roll"], "pitch": est["pitch"], "yaw": est["yaw"], "samples": est["samples"]},
-            "est": {"x": est["x"], "y": est["y"], "z": est["z"], "dist": est.get("dist"), "drift": est["drift"], "drift_warn": est["drift"] > 0.4},
+            "est": {"x": est["x"], "y": est["y"], "z": est["z"], "dist": est.get("dist"), "drift": est["drift"], "drift_warn": est["drift"] > 0.4, "no_imu": bool(est.get("no_imu"))},
             "cv": {"state": state, "conf": cv["conf"], "frames": cv["frames"], "ex_px": cv["ex_px"], "ey_px": cv["ey_px"], "w": cv["w"], "h": cv["h"],
                    "radius_px": cv["radius_px"], "boxes": cv["boxes"], "source": cv["source"], "lost_s": cv["lost_s"],
                    "mode": cv.get("mode", "beacon"), "n_sources": cv.get("n_sources", 0), "swarm_id": cv.get("swarm_id"), "swarm_n": cv.get("swarm_n", 0),
                    "swarms": [{k: sw[k] for k in ("id", "x", "y", "n", "spread", "selected")} for sw in cv.get("swarms", [])]},
             "sim": self._sim_block(link),
             "fins": {"yaw_cmd": round(yaw_cmd, 1), "pitch_cmd": round(pitch_cmd, 1), "yaw": round(link.fin_yaw, 1) if link else 0.0, "pitch": round(link.fin_pitch, 1) if link else 0.0},
+            "gimbal": {"pan_cmd": round(self.cam_cmd[0], 1), "tilt_cmd": round(self.cam_cmd[1], 1),
+                       "pan": None if not link or getattr(link, "cam_pan", None) is None else round(link.cam_pan, 1),
+                       "tilt": None if not link or getattr(link, "cam_tilt", None) is None else round(link.cam_tilt, 1),
+                       "tracking": bool(self.gimbal.tracking), "on": bool(self.cfg["gimbal_on"]),
+                       "offset": [round(v, 1) for v in cam_off],
+                       "pan_range": [self.cfg["pan_min"], self.cfg["pan_max"], self.cfg["pan_home"]], "tilt_range": [self.cfg["tilt_min"], self.cfg["tilt_max"], self.cfg["tilt_home"]]},
             "handover": {"threshold": self.cfg["handover_threshold"], "ok": self.guidance.last_conditions, "frames_needed": self.cfg["beacon_frames_needed"], "conf_needed": self.cfg["conf_needed"]},
             "mission": {"speed": m["speed"], "target": m["target"], "set": m["set"], "path_len": plen, "eta_s": None if not plen else round(plen / m["speed"], 1), "source": m["source"]},
             "preflight": self.preflight(), "batt_v": None if self.batt_v is None else round(self.batt_v, 2),
             "override": dict(self.override), "autolaunch": self.autolaunch,
             "arm_pending_s": None if not self.arm_pending_until else max(0.0, round(self.arm_pending_until - time.time(), 1)),
             "launch_pending_s": None if not self.launch_pending_until else max(0.0, round(self.launch_pending_until - time.time(), 1)),
-            "calibrating_s": self.imu.calibrating_s, "selftest_running": self.selftest_cmd is not None, "fault": self.guidance.fault,
+            "calibrating_s": self.imu.calibrating_s, "selftest_running": bool(self.selftest_running), "fault": self.guidance.fault,
             "cfg": {k: self.cfg[k] for k in TUNABLE},
         }
 
     def _sim_block(self, link):
-        """Fake mode only: true quad positions and the true fish pose, for the 3D demo and the simulated camera."""
-        if link is None or not getattr(link, "fake", False):
-            return {"quads": [], "fish": None, "cam_source": None}
-        with link.lock:
-            pos = link.pos.tolist(); yaw, pitch, roll = euler_deg(link.R)
-        return {"quads": link.quad_positions() if self.cfg["vision_mode"] == "swarm" else [],
-                "fish": {"pos": [round(v, 3) for v in pos], "yaw": round(yaw, 1), "pitch": round(pitch, 1), "roll": round(roll, 1), "launched": bool(link.launched)},
-                "cam_source": self.cam.source if isinstance(self.cam, SimCamera) else None}
+        """Simulated parts only: true quad positions and the simulated fish pose, for the 3D demo and the page camera."""
+        sim = self.sim
+        if sim is None:
+            return {"quads": [], "fish": None, "cam_source": None, "mode": None}
+        with sim.lock:
+            pos = sim.pos.tolist(); yaw, pitch, roll = euler_deg(sim.R)
+        return {"quads": sim.quad_positions() if self.cfg["vision_mode"] == "swarm" else [],
+                "fish": {"pos": [round(v, 3) for v in pos], "yaw": round(yaw, 1), "pitch": round(pitch, 1), "roll": round(roll, 1), "launched": bool(sim.launched),
+                         "cam_pan": round(sim.cam_pan, 1), "cam_tilt": round(sim.cam_tilt, 1), "pan_home": sim.cam_limits[0][2], "tilt_home": sim.cam_limits[1][2]},
+                "cam_source": self.cam.source if isinstance(self.cam, SimCamera) else None,
+                "mode": "full" if self.args.fake else "camera"}
 
     # ------------------------------------------------------------------ logs
     def export_json(self):

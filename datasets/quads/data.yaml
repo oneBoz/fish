@@ -1,5 +1,0 @@
-path: /Users/dingyihe/files/Personal/Hackathons/SDTHackathon/Projects/GCS/datasets/quads
-train: images/train
-val: images/val
-names:
-  0: quad

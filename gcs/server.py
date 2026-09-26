@@ -80,7 +80,7 @@ async def ws(sock: WebSocket):
     events = list(station.events)
     if events:
         seq = events[-1]["seq"]
-    await sock.send_text(json.dumps({"type": "hello", "events": events[-80:], "fake": bool(station.args.fake), "defaults": {"fin_ip": station.args.fin_ip, "cam_ip": station.args.cam_ip}}))
+    await sock.send_text(json.dumps({"type": "hello", "events": events[-80:], "fake": bool(station.args.fake), "defaults": {"fin_ip": station.args.fin_ip, "cam_ip": station.default_cam_ip()}}))
     try:
         while True:
             new = [e for e in station.events if e["seq"] > seq]
@@ -99,8 +99,8 @@ async def camsim(sock: WebSocket):
     """Fake mode: the page streams JPEG frames of the fish's rendered point of view (binary messages)."""
     await sock.accept()
     station.log("Simulated fish camera: page opened the stream socket.")
-    if not station.args.fake:
-        await sock.send_text(json.dumps({"ok": False, "error": "camsim is only available in fake mode"}))
+    if getattr(station, "sim", None) is None:
+        await sock.send_text(json.dumps({"ok": False, "error": "camsim needs --fake or a simulated camera (camera address 'sim')"}))
         await sock.close()
         return
     n = 0
@@ -121,7 +121,8 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(prog="python -m gcs", description="Fish ground control station")
     p.add_argument("--fake", action="store_true", help="no hardware: simulate the fish, its IMU and its IR camera")
     p.add_argument("--fin-ip", default="172.20.10.12", help="fish node (ESP32-S3) IP, UDP 4210")
-    p.add_argument("--cam-ip", default="172.20.10.13", help="ESP32-CAM IP (MJPEG on :81/stream)")
+    p.add_argument("--cam-ip", default=None, help="camera: ESP32-CAM IP (MJPEG on :81/stream), host:port, a full URL, or 'sim' (default: 172.20.10.13, or sim with --fake)")
+    p.add_argument("--fins-out", default=None, metavar="IP", help="also send every fin command to a physical fin board at this IP (e.g. with --fake: simulated flight, real fins)")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=9000)
     p.add_argument("--yolo", default=None, help="YOLO nano weights (.pt); needs `pip install ultralytics`")

@@ -438,3 +438,18 @@ Source: `docs/HIG_AUDIT.md` (38 verified findings). Mock approved by the owner a
 - **Symbols.** One inline SVG sprite replaces the Unicode glyphs: phases, checks, lock states, log levels, camera/IMU/link, settings, keyboard, chevrons.
 - **Colour and type.** Light-mode vision orange darkened to #D9531F; status text tokens used for dots and borders in both themes; `prefers-contrast: more` honoured with a tri-state setting; type scale tokens (h1 1.375 rem … footnote .8125 rem); buttons regular weight, primary bold.
 - **Not changed.** WCAG AA, 44 px targets, single-press Abort, keyboard shortcuts, the summary panel over the flight view (now a compact single row).
+
+## 19. Camera gimbal, 27 Sep 2026
+
+Two servos on the fin board (pan GPIO 18, 5 to 175°, centre 90; tilt GPIO 17, 35 to 75°, centre 55)
+point the camera at the detected centroid. Decisions: 18 pans and 17 tilts; during vision homing
+the fins steer on the gimbal angles plus the residual pixel error; with no target the camera holds
+centre and returns there one second after losing it; the UDP packet becomes
+`yaw,pitch,pan,tilt` with a five-value acknowledgement.
+
+Page: the Fins panel gains a "Camera gimbal" group with two gauges drawn from centre to the board's
+reported angle (tick = commanded, printed range ends, `role="meter"`), a state note (centred /
+tracking the target / off) and a "Camera follows the target" switch. The Vision panel shows where
+the camera looks relative to the nose ("12° right, 3° up"). The Fin self-test also wiggles pan and
+tilt. In simulation the fake fish's camera view and the page-rendered nose view both turn with the
+gimbal, so the tracking loop can be watched on the bench.

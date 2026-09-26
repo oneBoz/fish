@@ -29,7 +29,7 @@ from gcs.station import GroundStation  # noqa: E402
 def run_stop_restart(quiet=False):
     """Arm WITHOUT calibration or self-test, launch, stop 4 s into the glide, change the mission,
     arm again and fly to arrival. Exercises design section 12."""
-    args = argparse.Namespace(fake=True, fin_ip="x", cam_ip="x", yolo=None, imu_axes="x,y,z",
+    args = argparse.Namespace(fake=True, fin_ip="x", cam_ip="sim", yolo=None, imu_axes="x,y,z",
                               guidance="laptop", host="127.0.0.1", port=0, open=False)
     st = GroundStation(args)
     st.start()
@@ -70,7 +70,7 @@ def run_stop_restart(quiet=False):
 
 
 def run(target, speed, abort_at=None, timeout=45.0, quiet=False, swarm=False):
-    args = argparse.Namespace(fake=True, fin_ip="x", cam_ip="x", yolo=None, imu_axes="x,y,z",
+    args = argparse.Namespace(fake=True, fin_ip="x", cam_ip="sim", yolo=None, imu_axes="x,y,z",
                               guidance="laptop", host="127.0.0.1", port=0, open=False)
     st = GroundStation(args)
     st.start()
@@ -84,7 +84,9 @@ def run(target, speed, abort_at=None, timeout=45.0, quiet=False, swarm=False):
         r = st.command({"cmd": "swarm", "action": "auto"}); assert r["ok"], r
     time.sleep(st.cfg["calib_s"] + 0.4)
     assert st.command({"cmd": "selftest"})["ok"]
-    time.sleep(2.6)
+    t_st = time.time()
+    while st.selftest_running and time.time() - t_st < 10:
+        time.sleep(0.1)
     assert st.command({"cmd": "arm"})["ok"] and st.command({"cmd": "arm"})["ok"] and st.phase == "armed"
     assert st.command({"cmd": "launch"})["ok"]
     fish = st.link
@@ -113,7 +115,7 @@ def run(target, speed, abort_at=None, timeout=45.0, quiet=False, swarm=False):
             time.sleep(0.3)
             aborted_ok = r["ok"] and st.phase == "ready" and st.fin_cmd == (0.0, 0.0) and len(st.history) > 5
             r2 = st.command({"cmd": "arm"}); r2 = st.command({"cmd": "arm"}) if r2["ok"] else r2; armed = st.phase == "armed"; r3 = st.command({"cmd": "abort"})
-            print("abort ->", r, "phase", st.phase, "fins", st.fin_cmd, "history", len(st.history), "| arm ->", r2["ok"], "| abort while armed ->", r3, "phase", st.phase)
+            print("abort ->", r, "phase", st.phase, "fins", st.fin_cmd, "history", len(st.history), "| arm ->", r2, "| abort while armed ->", r3, "phase", st.phase)
             aborted_ok = aborted_ok and armed and r3["ok"] and st.phase == "ready"
             break
         if t["phase"] in ("arrived", "aborted"):

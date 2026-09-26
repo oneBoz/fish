@@ -31,6 +31,22 @@ logs/
 flight_*.json
 flight_*.csv
 
+# ---- YOLO training (regenerate with tools/synth + tools/train_quads.py) ----
+datasets/
+runs/
+# trained weights are covered by *.pt / *.onnx above; keep the tiny class list
+!models/quads.names
+# base weights ultralytics downloads into the repo root
+yolo11n*.pt
+
+# ---- GCS downloads (Log panel) ----
+maelstrom-flight*.json
+maelstrom-flight*.csv
+
+# ---- Headless-browser profiles and screenshots from local checks ----
+chrome-*/
+shots*/
+
 # ---- Arduino / ESP32 build output ----
 build/
 *.bin

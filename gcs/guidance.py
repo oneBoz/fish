@@ -82,16 +82,20 @@ class Guidance:
         fm = self.cfg["fin_max"]
         return clamp(k * yaw_err, -fm, fm), clamp(k * pitch_err, -fm, fm)
 
-    def cv_law(self, cv, dt):
-        """cv: dict with found, ex_px, ey_px, w, h."""
+    def cv_law(self, cv, dt, cam_offset=(0.0, 0.0)):
+        """cv: dict with found, ex_px, ey_px, w, h. cam_offset: (right_deg, up_deg) the camera gimbal
+        looks away from the nose. The fins steer on the sum of the gimbal offset and the residual
+        pixel error, so the fish turns until the camera is centred and the target straight ahead."""
         c = self.cfg
         fm = c["fin_max"]
         if not cv["found"]:
             self.int_ex = self.int_ey = 0.0
             return 0.0, 0.0, True
-        ex_n = cv["ex_px"] / (cv["w"] / 2.0)
-        ey_n = cv["ey_px"] / (cv["h"] / 2.0)
-        in_db = math.hypot(cv["ex_px"], cv["ey_px"]) < c["deadband_px"]
+        hf = c.get("cam_hfov", 62.0) / 2.0; vf = c.get("cam_vfov", 49.0) / 2.0
+        ex_n = cv["ex_px"] / (cv["w"] / 2.0) + cam_offset[0] / hf
+        ey_n = cv["ey_px"] / (cv["h"] / 2.0) - cam_offset[1] / vf
+        err_px = math.hypot(ex_n * cv["w"] / 2.0, ey_n * cv["h"] / 2.0)
+        in_db = err_px < c["deadband_px"]
         if in_db:
             self.int_ex = self.int_ey = 0.0
             return 0.0, 0.0, True
@@ -104,7 +108,7 @@ class Guidance:
         return clamp(yaw, -fm, fm), clamp(pitch, -fm, fm), False
 
     # ------------------------------------------------------------------ step
-    def step(self, dt, est, R, target, cv, link_ok, override=None):
+    def step(self, dt, est, R, target, cv, link_ok, override=None, cam_offset=(0.0, 0.0)):
         """
         Returns (yaw_cmd, pitch_cmd, events) and advances the phase.
         est: {'x','y','z','progress','dist'}; R: body->world rotation; cv: detector result; override: (yaw, pitch) or None.
@@ -135,12 +139,12 @@ class Guidance:
         elif self.phase == "handover":
             w = clamp((time.time() - self.handover_t) / c["handover_blend_s"], 0.0, 1.0)
             y1, p1 = self.imu_law(pos, R, target)
-            y2, p2, _ = self.cv_law(cv, dt)
+            y2, p2, _ = self.cv_law(cv, dt, cam_offset)
             yaw, pitch = (1 - w) * y1 + w * y2, (1 - w) * p1 + w * p2
             if w >= 1.0:
                 self.set_phase("cv_homing"); events.append(("info", "Phase: Vision homing — blend complete, laptop vision now steers"))
         elif self.phase == "cv_homing":
-            yaw, pitch, in_db = self.cv_law(cv, dt)
+            yaw, pitch, in_db = self.cv_law(cv, dt, cam_offset)
             self.cv_locked_frames = self.cv_locked_frames + 1 if (cv["found"] and in_db) else 0
             if not cv["found"] and cv.get("lost_s", 0.0) > c["cv_lost_timeout_s"]:
                 self.set_phase("imu_glide"); events.append(("warn", "Beacon lost for %.1f s, back to IMU glide" % cv["lost_s"]))

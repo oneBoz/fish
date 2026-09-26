@@ -41,6 +41,9 @@ class FishLink(threading.Thread):
         self.error = None
         self.fin_yaw = 0.0
         self.fin_pitch = 0.0
+        self.cam_pan = None            # reported by the board's ACK when it has the gimbal
+        self.cam_tilt = None
+        self.fin_board_ok = None       # None = single board; True/False = head node's link to a separate fin board
         self._last_send = 0.0
         self._imu_count = 0
         self._imu_t0 = time.time()
@@ -50,8 +53,11 @@ class FishLink(threading.Thread):
     def stop(self):
         self._stop.set()
 
-    def send(self, yaw, pitch):
-        msg = f"{yaw:.1f},{pitch:.1f}\n".encode()
+    def send(self, yaw, pitch, pan=None, tilt=None):
+        if pan is None or tilt is None:
+            msg = f"{yaw:.1f},{pitch:.1f}\n".encode()
+        else:
+            msg = f"{yaw:.1f},{pitch:.1f},{pan:.1f},{tilt:.1f}\n".encode()
         self._send_raw(msg)
 
     def home(self):
@@ -92,6 +98,10 @@ class FishLink(threading.Thread):
             if len(parts) >= 3:
                 try:
                     self.fin_yaw, self.fin_pitch = float(parts[1]), float(parts[2])
+                    if len(parts) >= 6:
+                        self.cam_pan, self.cam_tilt = float(parts[3]), float(parts[4])
+                    if len(parts) >= 7:
+                        self.fin_board_ok = parts[6] == "1"     # two-board layout: the head node reports its UART link to the fin board
                 except ValueError:
                     pass
         elif line.startswith("IMU,"):
@@ -160,6 +170,9 @@ class FakeFish(threading.Thread):
         self.error = None
         self.fin_yaw = self.fin_pitch = 0.0          # actual (slewed)
         self.cmd_yaw = self.cmd_pitch = 0.0
+        self.cam_pan, self.cam_tilt = 90.0, 55.0     # camera gimbal, absolute servo angles (slewed)
+        self.cmd_pan, self.cmd_tilt = 90.0, 55.0
+        self.cam_limits = ((5.0, 175.0, 90.0), (35.0, 75.0, 55.0))   # (min, max, home) for pan, tilt
         self.last_cmd_time = 0.0
         self.pos = np.zeros(3)
         self.R = R_LEVEL.copy()
@@ -178,16 +191,19 @@ class FakeFish(threading.Thread):
     # ---- FishLink surface ----
     def stop(self): self._stop.set()
 
-    def send(self, yaw, pitch):
+    def send(self, yaw, pitch, pan=None, tilt=None):
         self.sent += 1
         self.cmd_yaw, self.cmd_pitch = max(-30.0, min(30.0, yaw)), max(-30.0, min(30.0, pitch))
+        if pan is not None and tilt is not None:
+            (pl, ph, _), (tl, th, _) = self.cam_limits
+            self.cmd_pan, self.cmd_tilt = max(pl, min(ph, pan)), max(tl, min(th, tilt))
         self.last_cmd_time = time.time()
         self.acked += 1
         self.last_ack_time = time.time()
         self.rtt_ms = 18.0 + self.rng.random() * 8.0
-        self.last_ack = "ACK %.1f %.1f %d" % (self.fin_yaw, self.fin_pitch, self.acked)
+        self.last_ack = "ACK %.1f %.1f %.1f %.1f %d" % (self.fin_yaw, self.fin_pitch, self.cam_pan, self.cam_tilt, self.acked)
 
-    def home(self): self.send(0.0, 0.0)
+    def home(self): self.send(0.0, 0.0, self.cam_limits[0][2], self.cam_limits[1][2])
     def send_text(self, text): pass
 
     @property
@@ -206,6 +222,15 @@ class FakeFish(threading.Thread):
 
     def basis(self):
         return self.R[:, 0].copy(), self.R[:, 1].copy(), self.R[:, 2].copy()
+
+    def cam_basis(self):
+        """Camera axes: the body axes turned by the gimbal (pan about up, tilt about right).
+        Pan above 90 looks right, tilt above 55 looks up (the laptop's invert tunables flip this)."""
+        f, r, u = self.basis()
+        pa = math.radians(self.cam_pan - self.cam_limits[0][2]); ta = math.radians(self.cam_tilt - self.cam_limits[1][2])
+        f1 = f * math.cos(pa) + r * math.sin(pa); r1 = r * math.cos(pa) - f * math.sin(pa)
+        f2 = f1 * math.cos(ta) + u * math.sin(ta); u2 = u * math.cos(ta) - f1 * math.sin(ta)
+        return f2, r1, u2
 
     # ---- simulated quad swarm (design section 15) ----
     def set_swarm(self, on, n=4, radius=0.4):
@@ -255,6 +280,7 @@ class FakeFish(threading.Thread):
             self.launched = False
             self.pos = np.zeros(3)
             self.fin_yaw = self.fin_pitch = self.cmd_yaw = self.cmd_pitch = 0.0
+            self.cam_pan = self.cmd_pan = self.cam_limits[0][2]; self.cam_tilt = self.cmd_tilt = self.cam_limits[1][2]
             self.set_mission(self.speed, self.target)
 
     def run(self):
@@ -270,8 +296,11 @@ class FakeFish(threading.Thread):
                 # fin node behaviour: link timeout -> neutral, slew 3 deg / 20 ms
                 if t0 - self.last_cmd_time > 1.0:
                     self.cmd_yaw = self.cmd_pitch = 0.0
+                    self.cmd_pan, self.cmd_tilt = self.cam_limits[0][2], self.cam_limits[1][2]
                 self.fin_yaw += max(-3.0, min(3.0, self.cmd_yaw - self.fin_yaw))
                 self.fin_pitch += max(-3.0, min(3.0, self.cmd_pitch - self.fin_pitch))
+                self.cam_pan += max(-4.0, min(4.0, self.cmd_pan - self.cam_pan))
+                self.cam_tilt += max(-4.0, min(4.0, self.cmd_tilt - self.cam_tilt))
                 # disturbance random walk (deg/s)
                 self.dist_yaw = max(-1.5, min(1.5, self.dist_yaw + self.rng.gauss(0, 0.4) * dt))
                 self.dist_pitch = max(-1.0, min(1.0, self.dist_pitch + self.rng.gauss(0, 0.3) * dt))
@@ -395,7 +424,7 @@ class FakeIRCam(threading.Thread):
             xs = self.rng.integers(0, self.w, n); ys = self.rng.integers(0, self.h, n)
             img[ys, xs] = self.rng.integers(20, 50, n)
             with self.fish.lock:
-                fwd, right, up = self.fish.basis()
+                fwd, right, up = self.fish.cam_basis()
                 points = [self.fish.target + q["off"] for q in self.fish.quads] if self.fish.swarm_on else [self.fish.target]
                 pos = self.fish.pos.copy()
             led = 22.0 if len(points) == 1 else 9.0          # a quad's LED is smaller than the beacon

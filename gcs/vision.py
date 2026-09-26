@@ -83,7 +83,12 @@ class MjpegSource(threading.Thread):
             except Exception as e:  # noqa: BLE001
                 self.connected = False
                 self.error = str(e)
-                time.sleep(2)
+                # the ESP32-CAM has only a handful of sockets and serves one stream at a time:
+                # retry slowly so a stalled stream cannot wedge its web server
+                for _ in range(50):
+                    if self._stop.is_set():
+                        break
+                    time.sleep(0.1)
         self.connected = False
 
     def latest(self):

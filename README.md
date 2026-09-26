@@ -16,7 +16,27 @@ laptop  python -m gcs   →  http://127.0.0.1:9000  (the GCS page)
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m gcs --fake --open              # no hardware: simulated fish, IMU and IR camera
 .venv/bin/python -m gcs --fin-ip 172.20.10.12 --cam-ip 172.20.10.13 --open   # real fish
+.venv/bin/python -m gcs --fin-ip 172.20.10.12 --cam-ip sim --open            # real fins, simulated camera
+.venv/bin/python -m gcs --fake --fins-out 172.20.10.12 --open                # simulated flight, real fins follow
+.venv/bin/python -m gcs --fake --fins-out 172.20.10.12 --cam-ip 172.20.10.13 --open   # simulated flight, real fins, real camera
 ```
+
+With `--fake`, `--cam-ip` picks the camera: `sim` (default) renders the simulated fish's view; a real
+address runs vision on the ESP32-CAM stream while the flight stays simulated, so you can hold a beacon
+or quads in front of the camera for the hand-over. A camera address may also be `host:port` or a full
+stream URL.
+
+
+`--fins-out IP` mirrors every fin command (guidance, self-test, neutral) to a physical fin board in any
+mode. With `--fake` the whole flight, swarm and camera are simulated and the real fins move in step;
+the board's link is shown in the Fins panel but never affects the simulated mission.
+
+
+`--cam-ip sim` (or typing `sim` in the page's Camera field) keeps the real fin board and replaces the
+camera with a ghost fish that flies whatever fins you command: the page renders its view, the detector
+runs on it, and the ghost also supplies IMU samples while the real board sends none. Good for testing
+the fins and the whole flight logic on the bench without the ESP32-CAM.
+
 
 Options: `--yolo weights.pt` (needs `pip install ultralytics`; IR blob detection is the fallback),
 `--imu-axes x,y,z` (which ICM20948 sensor axes point forward, right, up; the triple must stay right-handed, so flip signs in pairs, e.g. `x,-y,-z`), `--guidance laptop|fish`
@@ -123,18 +143,55 @@ hundred or so and add them to the same folders before retraining (the synthetic 
 | `tools/synth/` | Three.js synthetic drone image generator + save server (YOLO dataset) |
 | `tools/train_quads.py` | fine-tune YOLO nano on that dataset, export ONNX for the Pi |
 | `gcs/static/index.html` | the ground station page (Three.js flight view, vision, fins, log; WCAG 2.2 AA and the Apple HIG redesign in `docs/FRONTEND_DESIGN.md`, audit in `docs/HIG_AUDIT.md`) |
-| `firmware/fish_node/fish_node.ino` | `pid_fins.ino` + ICM20948 streaming + PING/MISSION/LAUNCH. Untested on hardware. |
+| `firmware/fish_node/fish_node.ino` | ICM20948 streaming + PING/MISSION/LAUNCH (no camera gimbal yet). Untested on hardware. |
+| `pid_fins/pid_fins.ino` | single-board firmware: 4 fin servos + camera pan/tilt gimbal, self-test, serial tuning |
+| `firmware/cam_imu_node/` | two-board layout, head node (ESP32-S3): Wi-Fi, camera gimbal, ICM20948, fin node over UART |
+| `firmware/fin_node_uart/` | two-board layout, fin node (classic ESP32): 4 fins on GPIO 26/27/14/12, commanded over UART |
+| `gcs/gimbal.py` | camera gimbal tracker (pixel error → pan/tilt), camera offset for the fin law |
 | `docs/FRONTEND_DESIGN.md` | the agreed design, data contract and decisions |
 
 ## Wire protocol (UDP 4210)
 
 ```
-laptop → fish   "yaw,pitch\n"   "HOME\n"   "PING\n"   "MISSION,speed,x,y,z\n"   "LAUNCH\n"
-fish → laptop   "ACK yaw pitch n\n"   "IMU,ms,ax,ay,az,gx,gy,gz\n" (m/s², deg/s, ~50 Hz)   "BATT,v\n"
+laptop → fish   "yaw,pitch,pan,tilt\n"  (fins deg from neutral; camera pan/tilt absolute servo angles)
+                "yaw,pitch\n"   "HOME\n"   "PING\n"   "MISSION,speed,x,y,z\n"   "LAUNCH\n"
+fish → laptop   "ACK yaw pitch pan tilt n\n"   "IMU,ms,ax,ay,az,gx,gy,gz\n" (m/s², deg/s, ~50 Hz)   "BATT,v\n"
 ```
+
+## Camera gimbal (pid_fins.ino)
+
+Two extra servos on the fin board point the camera at the detected beacon or swarm centroid:
+pan on GPIO 18 (5 to 175°, centre 90) and tilt on GPIO 17 (35 to 75°, centre 55). The board clamps
+both to their limits, slews them at 4° per 20 ms tick, and centres them when the link drops or on
+`HOME`. The ground station runs a P-I tracker on the pixel error (`gimbal_kp`, `gimbal_ki`,
+`gimbal_deadband_px`, `invert_pan`, `invert_tilt` tunables; `gimbal_on` switches tracking off) and
+returns the camera to centre one second after the target is lost. During vision homing the fins
+steer on the camera's offset from centre plus the residual pixel error, so the fish turns until the
+camera looks straight ahead. The Fin self-test button wiggles the fins, then pan (30 → 150 → 90),
+then tilt (35 → 75 → 55); the boot self-test and the serial `a` command do the same on the board,
+and `w4` / `w5` / `c<pan> <tilt>` drive the camera directly. If the camera turns the wrong way,
+flip `invert_pan` or `invert_tilt` in Detection tuning rather than rewiring.
+
+## Two-board layout (head node + fin node over UART)
+
+```
+laptop <-Wi-Fi/UDP 4210-> ESP32-S3 head node (firmware/cam_imu_node) <-UART-> classic ESP32 fin node (firmware/fin_node_uart)
+                          camera pan GPIO 18 / tilt GPIO 17                     fins GPIO 26, 27, 14, 12 (servo index 0-3)
+                          ICM20948 on SDA 6 / SCL 5 / INT 4
+```
+
+Wiring: head TX GPIO 21 → fin RX GPIO 16, fin TX GPIO 17 → head RX GPIO 20, grounds common, 115200 baud.
+Boards in the IDE: head node = ESP32S3 Dev Module (bottom USB-C port), fin node = ESP32 Dev Module. Both sketches compile with esp32 core 2.0.17.
+The laptop protocol is unchanged, so the ground station needs no options: the head node answers
+`ACK yaw pitch pan tilt n finlink`, where yaw/pitch are the fin board's real angles and `finlink`
+is 1 while the fin board is answering on the UART; the Fins panel shows "Fin board (UART)". The head
+node forwards `F,yaw,pitch` fifty times a second (the fin board goes neutral 1 s without it), `W` for
+the self-test, and any `t`/`f`/`m`/`w`/`?` tuning command typed on its monitor as `C:<cmd>`.
+Note that GPIO 12 is a strapping pin on the classic ESP32; if the board fails to boot with that
+servo plugged in, move the fourth fin to GPIO 13 and change `SERVO_PINS`.
 
 ## Flash the fish node
 
-Arduino IDE → board ESP32-S3, libraries **ESP32Servo** and **SparkFun 9DoF IMU Breakout - ICM 20948**.
+Arduino IDE → board ESP32-S3, libraries **ESP32Servo** and **SparkFun 9DoF IMU Breakout - ICM 20948 - Arduino Library** (that exact name in the Library Manager; both are installed on this laptop).
 Set Wi-Fi credentials and I2C pins in `fish_node.ino`. The old `pid_fins.ino` still works with the
 GCS for fins only (no IMU lines, so Calibrate reports "no IMU samples").

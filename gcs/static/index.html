@@ -335,7 +335,7 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
     <div class="group first">
       <h3><span class="step" id="step-1" aria-hidden="true">1</span>Connect over hotspot</h3>
       <div class="field"><label for="ip-fin">Fin board IP</label><input type="text" id="ip-fin" value="172.20.10.12" inputmode="decimal" aria-describedby="ip-fin-msg"><span id="ip-fin-msg" class="hint">ESP32-S3, UDP 4210</span></div>
-      <div class="field"><label for="ip-cam">Camera IP</label><input type="text" id="ip-cam" value="172.20.10.13" inputmode="decimal" aria-describedby="ip-cam-msg"><span id="ip-cam-msg" class="hint">ESP32-CAM, MJPEG :81/stream</span></div>
+      <div class="field"><label for="ip-cam">Camera IP</label><input type="text" id="ip-cam" value="172.20.10.13" inputmode="decimal" aria-describedby="ip-cam-msg"><span id="ip-cam-msg" class="hint">ESP32-CAM, MJPEG :81/stream. Type <code>sim</code> for a simulated camera with the real fins.</span></div>
       <div class="btn-row"><button class="btn" id="btn-connect">Connect</button><button class="btn" id="btn-disconnect" disabled>Disconnect</button><span class="hint" id="connect-hint"></span></div>
     </div>
     <div class="group">
@@ -503,6 +503,7 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
       <dt>Normalised error</dt><dd id="cv-norm">—</dd>
       <dt>Fin deflection from vision</dt><dd id="cv-fin">—</dd>
       <dt>Frames · inference</dt><dd id="cv-fps">—</dd>
+      <dt>Camera looks</dt><dd id="cv-cam">—</dd>
     </dl>
     <p class="hint" id="cv-alt">No camera stream.</p>
     <p class="hint" id="cv-src"></p>
@@ -537,12 +538,23 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
       <div class="fin"><span id="fl3">Fin 3 · yaw, bottom</span><div class="gauge" role="meter" aria-labelledby="fl3" aria-valuemin="-30" aria-valuemax="30" aria-valuenow="0" id="g3"><div class="c"></div><div class="act" id="g3a"></div><div class="cmd" id="g3c"></div></div><span class="mono" id="f3" style="text-align:right">+0.0°</span></div>
     </div>
     <p class="foot">Bar: actual deflection. Tick: commanded.</p>
+    <div class="group">
+      <h3>Camera gimbal <span class="foot" id="gim-state">centred</span></h3>
+      <div class="fin"><span id="gl-pan">Pan · GPIO 18</span><div class="gauge" role="meter" aria-labelledby="gl-pan" aria-valuemin="5" aria-valuemax="175" aria-valuenow="90" id="gp"><div class="c" id="gp-c"></div><div class="act" id="gpa"></div><div class="cmd" id="gpc"></div></div><span class="mono" id="gpv" style="text-align:right">90°</span></div>
+      <div class="ends" aria-hidden="true" style="margin:0 4.5rem 0 8.5rem"><span id="gp-min">5°</span><span>90</span><span id="gp-max">175°</span></div>
+      <div class="fin"><span id="gl-tilt">Tilt · GPIO 17</span><div class="gauge" role="meter" aria-labelledby="gl-tilt" aria-valuemin="35" aria-valuemax="75" aria-valuenow="55" id="gt"><div class="c" id="gt-c"></div><div class="act" id="gta"></div><div class="cmd" id="gtc"></div></div><span class="mono" id="gtv" style="text-align:right">55°</span></div>
+      <div class="ends" aria-hidden="true" style="margin:0 4.5rem 0 8.5rem"><span id="gt-min">35°</span><span>55</span><span id="gt-max">75°</span></div>
+      <p class="foot">Bar: from centre to the camera's reported angle. Tick: commanded. The camera follows the beacon or swarm centroid; the fins then turn the fish until the camera is centred again.</p>
+      <label class="check"><input type="checkbox" id="gim-on" checked> Camera follows the target</label>
+    </div>
     <dl class="kv">
       <dt>Yaw, commanded → actual</dt><dd id="fin-yaw">—</dd>
       <dt>Pitch, commanded → actual</dt><dd id="fin-pitch">—</dd>
       <dt>Link round-trip</dt><dd id="fin-rtt">—</dd>
       <dt>Packets sent / acked</dt><dd id="fin-pk">—</dd>
       <dt>Battery</dt><dd id="fin-batt">—</dd>
+      <dt id="fin-mirror-k" hidden>Physical fins</dt><dd id="fin-mirror" hidden>—</dd>
+      <dt id="fin-board-k" hidden>Fin board (UART)</dt><dd id="fin-board" hidden>—</dd>
     </dl>
     <div class="group">
       <label class="check"><input type="checkbox" id="ov-on" disabled> Manual override <span class="foot">pauses guidance</span></label>
@@ -688,6 +700,7 @@ const S = {
   cvW:640, cvH:480, cvSource:'ir', lastControls:0,
   summary:{handoverT:null, maxConf:0, maxDrift:0, reason:''},
   vmode:'beacon', swarms:[], swarmId:null, swarmN:0, nSources:0, simQuads:[], lastSwarmKey:'', simFish:null, camSource:null, lastTel:0, outage:false,
+  gimbal:null,
 };
 
 /* ================= log + live regions ================= */
@@ -744,7 +757,7 @@ function updateControls(){
   $('btn-cal').disabled = !(ph==='ready') || S.calibrating != null;
   $('btn-selftest').disabled = !(ph==='ready') || S.selftestRunning;
   const skipped = pf.skipped || [];
-  $('btn-arm').disabled = !((ph==='ready' && pf.can_arm) || ph==='armed');
+  $('btn-arm').disabled = !((ph==='ready' && pf.can_arm && !S.selftestRunning) || ph==='armed');
   $('btn-arm').textContent = ph==='armed' ? 'Disarm' : (S.armPending != null ? 'Confirm arm (' + Math.ceil(S.armPending) + ' s)' + (skipped.length ? ' · ' + skipped.length + ' check' + (skipped.length>1?'s':'') + ' skipped' : '') : 'Arm');
   const sk = $('arm-skipped'); sk.hidden = !(ph==='ready' && pf.can_arm && skipped.length); if (!sk.hidden) sk.textContent = 'Arming will skip: ' + skipped.join(', ') + '.';
   $('btn-launch').disabled = ph!=='armed' || !!countdown || S.launchPending != null;
@@ -796,7 +809,7 @@ function validIp(id, msgId, def){
   m.textContent = def; m.className='hint'; $(id).removeAttribute('aria-invalid'); return v;
 }
 async function connect(){
-  const fin = validIp('ip-fin','ip-fin-msg','ESP32-S3, UDP 4210'), cam = validIp('ip-cam','ip-cam-msg','ESP32-CAM, MJPEG :81/stream');
+  const fin = validIp('ip-fin','ip-fin-msg','ESP32-S3, UDP 4210'); const camRaw = $('ip-cam').value.trim(); const cam = /^(sim|fake)$/i.test(camRaw) ? 'sim' : (/^[\w.\-]+(:\d+)?(\/.*)?$/.test(camRaw) && camRaw ? camRaw : validIp('ip-cam','ip-cam-msg','ESP32-CAM, MJPEG :81/stream, or sim'));
   if (!fin) { $('ip-fin').focus(); return; } if (!cam) { $('ip-cam').focus(); return; }
   const b = $('btn-connect'); b.disabled = true; b.textContent = 'Connecting…';
   const r = await cmd({cmd:'connect', fin_ip:fin, cam_ip:cam}, $('ip-fin-msg'));
@@ -805,6 +818,7 @@ async function connect(){
   updateControls();
 }
 $('btn-connect').addEventListener('click', connect);
+['ip-fin','ip-cam'].forEach(id => $(id).addEventListener('input', e => { e.target.dataset.edited = '1'; }));
 $('btn-disconnect').addEventListener('click', () => cmd({cmd:'disconnect'}, $('ip-fin-msg')).then(() => { $('ip-fin-msg').textContent='ESP32-S3, UDP 4210'; $('ip-fin-msg').className='hint'; $('ip-cam-msg').textContent='ESP32-CAM, MJPEG :81/stream'; $('ip-cam-msg').className='hint'; }));
 
 async function applyMission(source){
@@ -891,6 +905,7 @@ $('sum-ready').addEventListener('click', () => { hideSummary(); stopMission(); }
 $('sum-close').addEventListener('click', () => { hideSummary(); $('btn-stop').focus(); });
 $('dlg-summary').addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); hideSummary(); $('btn-stop').focus(); } });
 function setOverrideUI(on){ $('ov-yaw').disabled = !on; $('ov-pitch').disabled = !on; $('ov-banner').classList.toggle('on', on); }
+$('gim-on').addEventListener('change', e => cmd({cmd:'tune', key:'gimbal_on', value:e.target.checked}));
 $('ov-on').addEventListener('change', e => cmd({cmd:'override', on:e.target.checked, yaw:+$('ov-yaw').value, pitch:+$('ov-pitch').value}).then(r => { if (!r.ok) e.target.checked = false; setOverrideUI(e.target.checked); }));
 let ovTimer = null;
 function sendOverride(){ if (ovTimer) return; ovTimer = setTimeout(() => { ovTimer = null; cmd({cmd:'override', on:$('ov-on').checked, yaw:+$('ov-yaw').value, pitch:+$('ov-pitch').value}); }, 100); }
@@ -918,7 +933,7 @@ function connectWs(){
   ws.onclose = () => { S.wsOk = false; scheduleWs(); updateControls(); };
   ws.onerror = () => { try { ws.close(); } catch (_) {} };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
-    if (m.type === 'hello') { S.fake = !!m.fake; $('pill-sim').hidden = !m.fake; if (m.defaults) { if (!$('ip-fin').value) $('ip-fin').value = m.defaults.fin_ip; if (!$('ip-cam').value) $('ip-cam').value = m.defaults.cam_ip; } (m.events || []).forEach(e => log(e.msg, e.level, e.t_mission)); }
+    if (m.type === 'hello') { S.fake = !!m.fake; $('pill-sim').hidden = !m.fake; S.simMode = m.fake ? 'full' : null; if (m.defaults) { if (!$('ip-fin').dataset.edited) $('ip-fin').value = m.defaults.fin_ip; if (!$('ip-cam').dataset.edited) $('ip-cam').value = m.defaults.cam_ip; } (m.events || []).forEach(e => log(e.msg, e.level, e.t_mission)); }
     else if (m.type === 'event') { log(m.msg, m.level, m.t_mission); if (/^Phase: /.test(m.msg)) S.summary.reason = m.msg.replace(/^Phase: [^—]*(— )?/, ''); }
     else if (m.type === 'telemetry') applyTelemetry(m); };
 }
@@ -930,8 +945,9 @@ function applyTelemetry(m){
   S.s = m.progress || 0; S.rtt = m.link.fin_rtt_ms; S.sent = m.link.sent; S.acked = m.link.acked; S.linkOk = !!m.link.alive; S.imuAge = m.link.imu_age_ms; S.imuRate = m.link.imu_rate; S.cam = m.cam;
   S.att = m.imu; S.est.set(m.est.x, m.est.y, m.est.z); S.pos.copy(S.est); S.drift = m.est.drift || 0;
   if (FLYING.has(m.phase)) { S.summary.maxConf = Math.max(S.summary.maxConf, m.cv.conf || 0); S.summary.maxDrift = Math.max(S.summary.maxDrift, S.drift); }
-  S.cv = {state: S.connected ? m.cv.state : 'none', ex: m.cv.ex_px, ey: m.cv.ey_px}; S.conf = m.cv.conf; S.vmode = m.cv.mode || 'beacon'; S.swarms = m.cv.swarms || []; S.swarmId = m.cv.swarm_id; S.swarmN = m.cv.swarm_n || 0; S.nSources = m.cv.n_sources || 0; S.simQuads = (m.sim && m.sim.quads) || []; S.simFish = m.sim ? m.sim.fish : null; S.camSource = m.sim ? m.sim.cam_source : null; S.cvFrames = m.cv.frames; S.cvW = m.cv.w; S.cvH = m.cv.h; S.cvSource = m.cv.source;
-  S.yaw = m.fins.yaw; S.pitch = m.fins.pitch; S.yawCmd = m.fins.yaw_cmd; S.pitchCmd = m.fins.pitch_cmd;
+  S.cv = {state: S.connected ? m.cv.state : 'none', ex: m.cv.ex_px, ey: m.cv.ey_px}; S.conf = m.cv.conf; S.vmode = m.cv.mode || 'beacon'; S.swarms = m.cv.swarms || []; S.swarmId = m.cv.swarm_id; S.swarmN = m.cv.swarm_n || 0; S.nSources = m.cv.n_sources || 0; S.simQuads = (m.sim && m.sim.quads) || []; S.simFish = m.sim ? m.sim.fish : null; S.camSource = m.sim ? m.sim.cam_source : null; S.simMode = m.sim ? m.sim.mode : null; S.fake = !!S.simMode; { const ps = $('pill-sim'); ps.hidden = !S.simMode; ps.querySelector('span').textContent = S.simMode === 'camera' ? 'Sim camera' : 'Simulated'; ps.setAttribute('aria-label', S.simMode === 'camera' ? 'Simulated camera, real fins' : 'Simulated fish'); } S.cvFrames = m.cv.frames; S.cvW = m.cv.w; S.cvH = m.cv.h; S.cvSource = m.cv.source;
+  S.yaw = m.fins.yaw; S.pitch = m.fins.pitch; S.yawCmd = m.fins.yaw_cmd; S.pitchCmd = m.fins.pitch_cmd; S.gimbal = m.gimbal || null;
+  if (S.gimbal && $('gim-on').checked !== !!S.gimbal.on && document.activeElement !== $('gim-on')) $('gim-on').checked = !!S.gimbal.on;
   S.batt = m.batt_v; S.hoOk = m.handover.ok; S.preflight = m.preflight; S.armPending = m.arm_pending_s; S.launchPending = m.launch_pending_s; S.calibrating = m.calibrating_s; S.calibrated = !!m.preflight.calibrated; S.selftest = !!m.preflight.selftest; S.selftestRunning = !!m.selftest_running;
   if (m.handover.threshold !== S.threshold && document.activeElement !== $('thr') && document.activeElement !== $('thr-n')) setThresholdUI(m.handover.threshold*100);
   if (m.override.on !== $('ov-on').checked) { $('ov-on').checked = m.override.on; }
@@ -1003,12 +1019,23 @@ function updateDOM(){
   $('cv-fin').textContent = seen && (S.phase==='cv_homing'||S.phase==='handover') ? 'yaw '+sgn(yawCmd,1)+'°, pitch '+sgn(pitchCmd,1)+'°' : '—';
   $('cv-fps').textContent = S.connected ? fmt(S.cam.fps,0)+' fps · '+fmt(S.cam.cv_ms,0)+' ms' : '—';
   $('cv-src').textContent = S.connected ? (S.tel && S.tel.cam.yolo ? 'YOLO nano loaded; IR blob is the fallback.' : 'IR blob detector (no YOLO weights loaded).') + (S.fake ? (S.camSource === 'browser' ? ' Frames: simulated fish camera from this page.' : ' Frames: dot picture from the ground station.') : '') : '';
-  $('camsim-box').hidden = !S.fake; $('tn-quads-box').hidden = !S.fake;
+  $('camsim-box').hidden = !(S.simMode && S.camSource != null); $('tn-quads-box').hidden = !S.simMode;
   $('cv-alt').textContent = !S.connected ? 'No camera stream.' : seen ? (sw ? 'Following swarm S' + S.swarmId + ' with ' + S.swarmN + ' quads, ' + S.swarms.length + ' swarm' + (S.swarms.length===1?'':'s') + ' visible, ' + S.nSources + ' sources. Centroid ' : 'Beacon ') + 'at ' + Math.round(S.cvW/2+cv.ex) + ', ' + Math.round(S.cvH/2+cv.ey) + ' of ' + S.cvW + '×' + S.cvH + ': ' + Math.abs(Math.round(cv.ex)) + ' px ' + (cv.ex>=0?'right':'left') + ', ' + Math.abs(Math.round(cv.ey)) + ' px ' + (cv.ey>=0?'below':'above') + ' centre. Confidence ' + fmt(cv.conf,2) + '.' : 'Dark IR frame, no beacon detected.';
   const g = (i, act, cmdv) => { const a = $('g'+i+'a'), cm = $('g'+i+'c'); const pa = act/60*100; a.style.left = (act>=0?50:50+pa)+'%'; a.style.width = Math.abs(pa)+'%'; cm.style.left = (50+cmdv/60*100)+'%'; $('f'+i).textContent = sgn(act,1)+'°'; $('g'+i).setAttribute('aria-valuenow', act.toFixed(1)); };
   g(0,pitch,pitchCmd); g(2,pitch,pitchCmd); g(1,yaw,yawCmd); g(3,yaw,yawCmd);
   $('fin-yaw').textContent = sgn(yawCmd,1)+'° → '+sgn(yaw,1)+'°'; $('fin-pitch').textContent = sgn(pitchCmd,1)+'° → '+sgn(pitch,1)+'°';
-  $('fin-rtt').textContent = S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : '—'; $('fin-pk').textContent = S.connected ? S.sent+' / '+S.acked : '—'; $('fin-batt').textContent = S.batt != null ? fmt(S.batt,2)+' V' : '—';
+  { const gb = S.gimbal; if (gb) {
+      const row = (id, cmd, act, range) => { const [lo, hi, home] = range; const pct = v => (v - lo) / (hi - lo) * 100; const a = act == null ? cmd : act; const c = $(id + '-c'), bar = $(id + 'a'), tick = $(id + 'c');
+        c.style.left = pct(home) + '%'; const p0 = pct(home), p1 = pct(a); bar.style.left = Math.min(p0, p1) + '%'; bar.style.width = Math.abs(p1 - p0) + '%'; tick.style.left = pct(cmd) + '%';
+        $(id + 'v').textContent = fmt(a, 0) + '°' + (act == null ? ' (cmd)' : ''); $(id).setAttribute('aria-valuenow', fmt(a, 1)); $(id).setAttribute('aria-valuemin', lo); $(id).setAttribute('aria-valuemax', hi); };
+      row('gp', gb.pan_cmd, gb.pan, gb.pan_range); row('gt', gb.tilt_cmd, gb.tilt, gb.tilt_range);
+      $('gp-min').textContent = gb.pan_range[0] + '°'; $('gp-max').textContent = gb.pan_range[1] + '°'; $('gt-min').textContent = gb.tilt_range[0] + '°'; $('gt-max').textContent = gb.tilt_range[1] + '°';
+      $('gim-state').textContent = !gb.on ? 'off' : gb.tracking ? 'tracking the target' : 'centred';
+      const off = gb.offset || [0, 0]; $('cv-cam').textContent = S.connected ? (Math.abs(off[0]) < 1 && Math.abs(off[1]) < 1 ? 'straight ahead' : fmt(Math.abs(off[0]),0) + '° ' + (off[0] >= 0 ? 'right' : 'left') + ', ' + fmt(Math.abs(off[1]),0) + '° ' + (off[1] >= 0 ? 'up' : 'down')) + (gb.pan == null ? ' (no gimbal reported by the board)' : '') : '—';
+  } }
+  $('fin-rtt').textContent = S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : '—';
+  { const fb = S.tel && S.tel.link ? S.tel.link.fin_board : null; $('fin-board-k').hidden = fb == null; $('fin-board').hidden = fb == null; if (fb != null) $('fin-board').textContent = fb ? 'connected' : 'NOT RESPONDING'; }
+  { const mr = S.tel && S.tel.link ? S.tel.link.mirror : null; $('fin-mirror-k').hidden = !mr; $('fin-mirror').hidden = !mr; if (mr) $('fin-mirror').textContent = mr.ip + ' · ' + (mr.alive ? fmt(mr.rtt_ms,0) + ' ms' : 'no ACK'); } $('fin-pk').textContent = S.connected ? S.sent+' / '+S.acked : '—'; $('fin-batt').textContent = S.batt != null ? fmt(S.batt,2)+' V' : '—';
   if (S.launchPending != null && S.phase === 'armed' && !countdown) { $('arm-msg').textContent = 'Waiting for the accelerometer to see the launch: ' + Math.ceil(S.launchPending) + ' s left.'; }
   if (!S.paused) { charts.forEach(ch => ch.update(S.hist, snap ? snap.t : null)); }
 }
@@ -1235,7 +1262,7 @@ function povInit(){
   povSky = new THREE.Mesh(new THREE.SphereGeometry(70, 16, 12), new THREE.MeshBasicMaterial({color: 0x8fb8d8, side: THREE.BackSide})); povSky.layers.set(2); scene.add(povSky);
   return true;
 }
-function camsimMode(){ return S.fake && S.connected ? $('camsim').value : 'off'; }
+function camsimMode(){ return S.fake && S.connected && S.camSource != null ? $('camsim').value : 'off'; }
 function camWsOpen(){
   if (camWs || camWsRetry) return;
   try { camWs = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/camsim'); camWs.binaryType = 'arraybuffer'; } catch (e) { return; }
@@ -1249,6 +1276,7 @@ function fishPose(){
   const fwd = new V(Math.sin(y)*Math.cos(p), Math.sin(p), Math.cos(y)*Math.cos(p));
   const right0 = new V(Math.cos(y), 0, -Math.sin(y)); const up0 = new V().crossVectors(fwd, right0);
   const right = right0.clone().multiplyScalar(Math.cos(r)).add(up0.clone().multiplyScalar(Math.sin(r))); const up = new V().crossVectors(fwd, right);
+  if (f.cam_pan != null) { const pa = (f.cam_pan - (f.pan_home || 90)) * Math.PI/180, ta = (f.cam_tilt - (f.tilt_home || 55)) * Math.PI/180; const f1 = fwd.clone().multiplyScalar(Math.cos(pa)).add(right.clone().multiplyScalar(Math.sin(pa))); const f2 = f1.clone().multiplyScalar(Math.cos(ta)).add(up.clone().multiplyScalar(Math.sin(ta))); const u2 = up.clone().multiplyScalar(Math.cos(ta)).sub(f1.clone().multiplyScalar(Math.sin(ta))); return {pos: new V(f.pos[0], f.pos[1], f.pos[2]), fwd: f2, up: u2}; }
   return {pos: new V(f.pos[0], f.pos[1], f.pos[2]), fwd, up};
 }
 function povPostIR(){
