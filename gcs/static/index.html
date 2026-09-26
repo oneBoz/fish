@@ -1,442 +1,505 @@
-<title>Maelstrom Flight Deck</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Maelstrom Ground Station</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
-  --ground:#F2F5F8; --surface:#FFFFFF; --surface-2:#E9EEF3; --ink:#12202C; --muted:#55667A;
-  --line:#CBD5E0; --line-strong:#75879B; --accent:#0B6E8E; --accent-ink:#FFFFFF; --focus:#0B6E8E;
-  --imu:#2a78d6; --cv:#eb6834; --imu-wash:rgba(42,120,214,.12); --cv-wash:rgba(235,104,52,.14);
-  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b; --crit-ink:#FFFFFF;
-  --good-text:#0B6B0B; --warn-text:#7A4E00; --crit-text:#A72C2C;
-  --font-ui:'Atkinson Hyperlegible',system-ui,-apple-system,"Segoe UI",sans-serif;
-  --font-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
-  --radius:6px; --bw:1px; --shadow:0 1px 2px rgba(18,32,44,.08);
+  --ground:#F2F5F8; --surface:#FFFFFF; --surface-2:#E9EEF3; --ink:#12202C; --muted:#55667A; --line:#CBD5E0; --line-strong:#75879B;
+  --accent:#0B6E8E; --accent-ink:#FFFFFF; --focus:#0B6E8E;
+  --imu:#2a78d6; --fish:#2a78d6; --cv:#D9531F; --imu-wash:rgba(42,120,214,.12); --cv-wash:rgba(217,83,31,.12);
+  --good:#0B6B0B; --warn:#7A4E00; --crit:#A72C2C; --abort:#C8322F; --abort-ink:#FFFFFF; --sim:#7A4E00;
+  --good-text:var(--good); --warn-text:var(--warn); --crit-text:var(--crit);
+  --font-ui:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,"SF Mono",Menlo,monospace;
+  --t-h1:1.375rem; --t-h2:1.125rem; --t-h3:1rem; --t-body:1rem; --t-callout:.9375rem; --t-foot:.8125rem;
+  --r:8px; --bw:1px; --shadow:0 1px 2px rgba(18,32,44,.08); --pop-shadow:0 12px 32px rgba(18,32,44,.22); --bar-h:64px;
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme:dark;
-    --ground:#0D141B; --surface:#172230; --surface-2:#1F2D3B; --ink:#E9EFF4; --muted:#9DACBB;
-    --line:#2A3846; --line-strong:#6B7F94; --accent:#5EC6E4; --accent-ink:#0D141B; --focus:#5EC6E4;
-    --imu:#3987e5; --cv:#d95926; --imu-wash:rgba(57,135,229,.18); --cv-wash:rgba(217,89,38,.2);
-    --good-text:#5FD35F; --warn-text:#FAC94F; --crit-text:#F07B7B; --shadow:none;
-  }
+  :root:not([data-theme="light"]){ color-scheme:dark;
+    --ground:#0D141B; --surface:#172230; --surface-2:#1F2D3B; --ink:#E9EFF4; --muted:#9DACBB; --line:#2A3846; --line-strong:#6B7F94;
+    --accent:#5EC6E4; --accent-ink:#0D141B; --focus:#5EC6E4; --imu:#3987e5; --fish:#3987e5; --cv:#E0672F; --imu-wash:rgba(57,135,229,.18); --cv-wash:rgba(224,103,47,.18);
+    --good:#5FD35F; --warn:#FAC94F; --crit:#F07B7B; --abort:#D6423E; --sim:#FAC94F; --shadow:none; --pop-shadow:0 12px 32px rgba(0,0,0,.5); }
 }
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --ground:#0D141B; --surface:#172230; --surface-2:#1F2D3B; --ink:#E9EFF4; --muted:#9DACBB;
-  --line:#2A3846; --line-strong:#6B7F94; --accent:#5EC6E4; --accent-ink:#0D141B; --focus:#5EC6E4;
-  --imu:#3987e5; --cv:#d95926; --imu-wash:rgba(57,135,229,.18); --cv-wash:rgba(217,89,38,.2);
-  --good-text:#5FD35F; --warn-text:#FAC94F; --crit-text:#F07B7B; --shadow:none;
-}
-:root[data-contrast="high"]{ --line:var(--line-strong); --bw:2px; --muted:var(--ink); }
+:root[data-theme="dark"]{ color-scheme:dark;
+  --ground:#0D141B; --surface:#172230; --surface-2:#1F2D3B; --ink:#E9EFF4; --muted:#9DACBB; --line:#2A3846; --line-strong:#6B7F94;
+  --accent:#5EC6E4; --accent-ink:#0D141B; --focus:#5EC6E4; --imu:#3987e5; --fish:#3987e5; --cv:#E0672F; --imu-wash:rgba(57,135,229,.18); --cv-wash:rgba(224,103,47,.18);
+  --good:#5FD35F; --warn:#FAC94F; --crit:#F07B7B; --abort:#D6423E; --sim:#FAC94F; --shadow:none; --pop-shadow:0 12px 32px rgba(0,0,0,.5); }
+:root[data-contrast="high"]{ --line:var(--line-strong); --bw:2px; --muted:var(--ink) }
+@media (prefers-contrast: more){ :root:not([data-contrast="normal"]){ --line:var(--line-strong); --bw:2px; --muted:var(--ink) } }
 
-*{box-sizing:border-box}
-[hidden]{display:none !important}
+*{box-sizing:border-box} [hidden]{display:none !important}
 html{height:100%}
-body{margin:0;min-height:100%;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:1rem;line-height:1.45;
-  padding-inline:16px;padding-block:0 24px}
-h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
-h2{font-size:1.05rem;font-weight:700}
-h3{font-size:.95rem;font-weight:700}
-p{margin:0}
-button,input,select,output{font:inherit;color:inherit}
+body{margin:0;min-height:100%;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--t-body);line-height:1.45;padding-inline:16px;padding-block:0 32px}
+h1,h2,h3{margin:0;line-height:1.25;text-wrap:balance;font-weight:700}
+h1{font-size:var(--t-h1)} h2{font-size:var(--t-h2)} h3{font-size:var(--t-h3)}
+p{margin:0} button,input,select,output{font:inherit;color:inherit}
 .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sr-only{position:absolute !important;width:1px !important;height:1px !important;min-height:0 !important;padding:0 !important;margin:-1px !important;border:0 !important;overflow:hidden !important;clip:rect(0 0 0 0);white-space:nowrap}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
-.skip{position:absolute;left:16px;top:-3rem;background:var(--accent);color:var(--accent-ink);padding:.5rem .75rem;border-radius:var(--radius);z-index:50;font-weight:700}
+.skip{position:absolute;left:16px;top:-3rem;background:var(--accent);color:var(--accent-ink);padding:.5rem .75rem;border-radius:var(--r);z-index:50;font-weight:700}
 .skip:focus{top:8px}
+.foot{font-size:var(--t-foot);color:var(--muted)} .callout{font-size:var(--t-callout)}
+.hint{color:var(--muted);font-size:var(--t-foot)} .err{color:var(--crit);font-size:var(--t-foot)} .okmsg{color:var(--good);font-size:var(--t-foot)}
+.ic{width:1.1em;height:1.1em;vertical-align:-.18em;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
-/* ---- top bar ---- */
-.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:var(--bw) solid var(--line);
-  margin-inline:-16px;padding:.5rem 16px;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem}
-.brand{display:flex;flex-direction:column;min-width:8rem}
-.brand-name{font-weight:700;font-size:1.15rem;letter-spacing:.01em}
-.brand-sub{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.links{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.4rem}
-.pill{display:inline-flex;align-items:center;gap:.4rem;border:var(--bw) solid var(--line);border-radius:999px;padding:.3rem .7rem;font-size:.85rem;background:var(--surface-2);min-height:2rem}
-.pill .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--muted);flex:none}
+/* ---- toolbar (one fixed row, three groups) ---- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:var(--bw) solid var(--line);margin-inline:-16px;padding:0 16px;height:var(--bar-h);display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:1rem}
+.bar-lead{display:flex;align-items:center;gap:1rem;min-width:0}
+.brand{display:flex;flex-direction:column;line-height:1.1}
+.brand h1{font-size:1.25rem;letter-spacing:.01em}
+.brand .foot{letter-spacing:.06em;text-transform:uppercase;font-size:.7rem;white-space:nowrap}
+.links{list-style:none;margin:0;padding:.2rem .35rem;display:flex;border:var(--bw) solid var(--line);border-radius:999px;gap:.15rem;background:var(--surface-2);min-width:0;overflow:hidden}
+.pill{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .45rem;border-radius:999px;font-size:var(--t-foot);white-space:nowrap}
+.pill.ok .pill-k::after{content:' ok';position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pill{position:relative}
+.pill .dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--muted);flex:none}
 .pill.ok .dot{background:var(--good)} .pill.slow .dot{background:var(--warn)} .pill.lost .dot{background:var(--crit)}
-.pill-k{color:var(--muted)}
-.phase-now{display:inline-flex;align-items:center;gap:.5rem;font-weight:700;padding:.35rem .8rem;border-radius:var(--radius);border:var(--bw) solid var(--line);min-height:2.4rem}
-.phase-now.imu{background:var(--imu-wash);border-color:var(--imu)} .phase-now.cv{background:var(--cv-wash);border-color:var(--cv)}
-.phase-now.good{border-color:var(--good)} .phase-now.crit{border-color:var(--crit)}
-.phase-icon{font-family:var(--font-mono);width:1.4rem;text-align:center}
-.clock{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:600;min-width:7.5rem}
-.topbar-actions{margin-left:auto;display:flex;gap:.5rem;align-items:center}
+.pill .pill-v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;min-width:4.2ch;text-align:right}
+.pill.sim{background:var(--surface);border:var(--bw) solid var(--sim);color:var(--sim)}
+.bar-mid{display:flex;align-items:center;gap:.9rem;justify-self:center;white-space:nowrap}
+.phase-now{display:inline-flex;align-items:center;gap:.5rem;font-weight:700;padding:.4rem .85rem;border-radius:999px;border:var(--bw) solid var(--line);min-height:2.5rem;background:var(--surface-2)}
+.phase-now.imu{background:var(--imu-wash);border-color:var(--imu)} .phase-now.cv{background:var(--cv-wash);border-color:var(--cv)} .phase-now.good{border-color:var(--good)} .phase-now.crit{border-color:var(--crit)} .phase-now.armed{border-color:var(--warn)}
+.clock{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:600;min-width:7.6ch}
+.bar-trail{display:flex;align-items:center;gap:.5rem;justify-self:end}
 
-/* ---- buttons ---- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;min-width:44px;padding:.5rem 1rem;border-radius:var(--radius);
-  border:var(--bw) solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;font-weight:700;text-align:center}
-.btn:hover:not(:disabled){background:var(--surface-2)}
+/* ---- buttons and segmented controls ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;min-width:44px;padding:.5rem 1rem;border-radius:var(--r);border:var(--bw) solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;font-weight:400;text-align:center;line-height:1.2;text-decoration:none}
+.btn:hover:not(:disabled){background:var(--surface-2)} .btn:active:not(:disabled){transform:translateY(1px);filter:brightness(.96)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
-.btn.primary:hover:not(:disabled){filter:brightness(1.08)}
-.btn.ghost{border-color:var(--line)}
-.btn.abort{background:var(--crit);color:var(--crit-ink);border-color:transparent;min-height:56px;padding-inline:1.6rem;font-size:1.1rem;letter-spacing:.06em}
-.btn.abort:hover:not(:disabled){filter:brightness(1.1)}
-.btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
-.btn.warnbtn{border-color:var(--warn-text);color:var(--warn-text)}
-.btn-row{display:flex;flex-wrap:wrap;gap:.5rem}
-.xyz{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
-.xyz input{min-height:44px;padding:.4rem .5rem;border:var(--bw) solid var(--line-strong);border-radius:var(--radius);background:var(--surface);width:100%}
-.cue{display:flex;align-items:center;gap:.75rem;flex-basis:100%;padding:.5rem .75rem;border-radius:var(--radius);border:2px solid var(--accent);background:var(--surface-2);font-weight:700;font-size:1.05rem}
-.cue.imu{border-color:var(--imu)} .cue.cv{border-color:var(--cv)} .cue.crit{border-color:var(--crit)} .cue.good{border-color:var(--good)} .cue.warn{border-color:var(--warn-text)}
-.cue-ic{font-family:var(--font-mono);font-size:1.3rem}
-.cue-count{font-size:2rem;line-height:1;min-width:2.4rem;text-align:center}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:700}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08);background:var(--accent)}
+.btn.quiet{border-color:var(--line)}
+.btn.abort{background:var(--abort);color:var(--abort-ink);border-color:transparent;min-height:48px;padding-inline:1.4rem;font-weight:700;letter-spacing:.04em}
+.btn.abort:hover:not(:disabled){filter:brightness(1.1);background:var(--abort)}
+.btn.icon{padding:.5rem;min-width:44px}
+.btn.small{min-height:44px;padding:.4rem .8rem;font-size:var(--t-callout)}
+.btn-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.seg{display:inline-flex;border:var(--bw) solid var(--line-strong);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.seg .btn{border:0;border-radius:0;min-height:40px;padding:.4rem .9rem;border-right:var(--bw) solid var(--line);font-size:var(--t-callout)}
+.seg .btn:last-child{border-right:0}
+.seg .btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.seg .btn:active:not(:disabled){transform:none}
+
+/* ---- cue strip: time-critical only ---- */
+.cue{margin-inline:-16px;padding:.6rem 16px;background:var(--surface);border-bottom:2px solid var(--warn);display:flex;align-items:center;gap:1rem;font-weight:700;position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--bar-h));z-index:19}
+.cue.crit{border-bottom-color:var(--crit)} .cue.good{border-bottom-color:var(--good)} .cue.imu{border-bottom-color:var(--imu)}
+.cue .cue-count{font-family:var(--font-mono);font-size:2rem;line-height:1;min-width:2ch;text-align:center}
 .cue .btn{margin-left:auto}
 
-/* ---- layout ---- */
-.jump{display:flex;flex-wrap:wrap;gap:.25rem 1rem;padding:.5rem 0;font-size:.9rem}
+/* ---- deck ordered by stage ---- */
+.jump{display:none;flex-wrap:wrap;gap:.25rem 1rem;padding:.5rem 0;font-size:var(--t-callout)}
 .jump a{color:var(--accent);min-height:44px;display:inline-flex;align-items:center}
-.deck{display:grid;gap:1rem;grid-template-columns:minmax(280px,330px) minmax(0,1fr) minmax(300px,360px);
-  grid-template-areas:"mission view vision" "guidance view fins" "guidance charts fins" "log log log";align-items:start}
-.panel{background:var(--surface);border:var(--bw) solid var(--line);border-radius:8px;padding:1rem;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:.9rem;min-width:0}
-.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap}
-.panel-head .sub{font-size:.8rem;color:var(--muted)}
-#sec-mission{grid-area:mission} #sec-guidance{grid-area:guidance} #sec-view{grid-area:view} #sec-charts{grid-area:charts}
-#sec-vision{grid-area:vision} #sec-fins{grid-area:fins} #sec-log{grid-area:log}
-@media (max-width:1100px){ .deck{grid-template-columns:1fr;grid-template-areas:"guidance" "view" "vision" "fins" "charts" "mission" "log"} }
+.deck{display:grid;gap:1rem;margin-top:1rem;grid-template-columns:minmax(300px,340px) minmax(0,1fr) minmax(300px,360px);grid-template-areas:"a centre c" "b centre d" "log log log";align-items:start}
+.panel{background:var(--surface);border:var(--bw) solid var(--line);border-radius:10px;padding:1rem;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:1rem;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap}
+.panel-head .btn-row{margin-left:auto}
+#sec-mission{grid-area:a} #sec-guidance{grid-area:b} #centre{grid-area:centre;display:flex;flex-direction:column;gap:1rem;min-width:0} #sec-vision{grid-area:c} #sec-fins{grid-area:d} #sec-log{grid-area:log}
+body[data-stage="armed"] #sec-guidance,body[data-stage="flying"] #sec-guidance,body[data-stage="ended"] #sec-guidance{grid-area:a}
+body[data-stage="armed"] #sec-mission,body[data-stage="flying"] #sec-mission,body[data-stage="ended"] #sec-mission{grid-area:b}
+@media (max-width:1100px){ .jump{display:flex} .deck{grid-template-columns:1fr;grid-template-areas:"a" "centre" "c" "d" "b" "log"} }
 
-/* ---- form bits ---- */
-fieldset{border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.75rem;margin:0;display:flex;flex-direction:column;gap:.6rem;min-width:0}
-legend{font-weight:700;padding:0 .3rem}
-.field{display:flex;flex-direction:column;gap:.25rem}
-.field label{font-size:.9rem}
-.field input[type=text],.field input[type=number],.field select{min-height:44px;padding:.4rem .6rem;border:var(--bw) solid var(--line-strong);border-radius:var(--radius);background:var(--surface);width:100%;max-width:100%}
-input[type=range]{width:100%;min-height:44px;accent-color:var(--accent)}
+/* ---- groups: one device per level ---- */
+.group{display:flex;flex-direction:column;gap:.6rem;padding-top:.75rem;border-top:var(--bw) solid var(--line)}
+.group.first{border-top:0;padding-top:0}
+.group h3{display:flex;align-items:center;gap:.5rem}
+.step{display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;border:var(--bw) solid var(--line-strong);font-size:var(--t-foot);font-family:var(--font-mono);flex:none}
+.step.done{background:var(--good);border-color:transparent;color:#fff}
+.eyebrow{font-size:var(--t-foot);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.field{display:flex;flex-direction:column;gap:.3rem}
+.field label,.field .lbl{font-size:var(--t-callout)}
+.field input[type=text],.field select{min-height:44px;padding:.4rem .6rem;border:var(--bw) solid var(--line-strong);border-radius:var(--r);background:var(--surface);width:100%;max-width:100%}
+.input{display:flex;align-items:center;border:var(--bw) solid var(--line-strong);border-radius:var(--r);background:var(--surface);min-height:44px;overflow:hidden}
+.input input{border:0;background:transparent;min-height:42px;padding:.4rem .6rem;width:100%;min-width:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
+.input input::-webkit-inner-spin-button,.input input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.input .unit{padding:0 .6rem;color:var(--muted);border-left:var(--bw) solid var(--line);align-self:stretch;display:flex;align-items:center;font-size:var(--t-callout);white-space:nowrap}
+.input input:disabled{color:var(--muted)} .input:has(input:disabled){background:var(--surface-2);border-color:var(--line)}
+.input:focus-within{outline:3px solid var(--focus);outline-offset:2px} .input input:focus-visible{outline:none}
+.xyz{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
+.xyz .field label{font-family:var(--font-mono);font-size:var(--t-foot);color:var(--muted)}
+.xyz .input input{padding:.4rem .45rem} .xyz .unit{padding:0 .4rem}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--accent);margin:0}
 input[type=checkbox]{width:1.25rem;height:1.25rem;accent-color:var(--accent);margin:0}
-.check{display:flex;align-items:center;gap:.6rem;min-height:44px}
-.err{color:var(--crit-text);font-size:.9rem}
-.okmsg{color:var(--good-text);font-size:.9rem}
-.hint{color:var(--muted);font-size:.85rem}
-.slider-row{display:grid;grid-template-columns:1fr 5.5rem;gap:.5rem;align-items:center}
-.slider-row input[type=number]{min-height:44px;border:var(--bw) solid var(--line-strong);border-radius:var(--radius);padding:.3rem .5rem;background:var(--surface);width:100%}
-details{border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.25rem .75rem}
-details[open]{padding-bottom:.75rem}
-summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
-details>*:not(summary){margin-top:.5rem}
-
-/* ---- data lists ---- */
-.kv{display:grid;grid-template-columns:auto 1fr;gap:.25rem .9rem;margin:0;font-size:.92rem}
-.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
-.kv dd.hi{font-weight:600}
-.checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem;font-size:.92rem}
-.checklist li{display:grid;grid-template-columns:1.4rem 1fr auto;gap:.5rem;align-items:center;min-height:1.6rem}
-.checklist .mark{font-family:var(--font-mono);font-weight:600;text-align:center}
-.checklist li.ok .mark{color:var(--good-text)} .checklist li.no .mark{color:var(--crit-text)}
+.check{display:flex;align-items:center;gap:.6rem;min-height:44px;font-size:var(--t-callout)}
+.slider-row{display:grid;grid-template-columns:1fr 6rem;gap:.5rem;align-items:center}
+.ends{display:flex;justify-content:space-between;font-size:var(--t-foot);color:var(--muted);font-family:var(--font-mono);margin-top:-.4rem}
+.slider-row+.ends{width:calc(100% - 6.5rem)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:.3rem .9rem;margin:0;font-size:var(--t-callout)}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right} .kv dd.hi{font-weight:600}
+.checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem;font-size:var(--t-callout)}
+.checklist li{display:grid;grid-template-columns:1.3rem 1fr auto;gap:.5rem;align-items:center;min-height:1.6rem}
+.checklist .mark{display:inline-flex;justify-content:center;font-family:var(--font-mono);font-weight:600}
+.checklist li.ok .mark{color:var(--good)} .checklist li.no .mark{color:var(--crit)} .checklist li.adv.no .mark{color:var(--muted)}
 .checklist .val{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
-.checklist li.adv.no .mark{color:var(--muted)}
-.pf-group{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:.25rem}
+details{border:var(--bw) solid var(--line);border-radius:var(--r);padding:0 .75rem}
+summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:.5rem;list-style:none;font-weight:700}
+summary::-webkit-details-marker{display:none}
+summary .ic{transition:transform .15s} details[open] summary .ic{transform:rotate(90deg)}
+details>*:not(summary){margin:0 0 .75rem}
+details .field+.field{margin-top:.25rem}
 
-/* ---- phase stepper ---- */
-.phases{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.15rem}
-.phases li{display:grid;grid-template-columns:1.6rem 1fr auto;gap:.5rem;align-items:center;padding:.3rem .5rem;border-radius:var(--radius);border:var(--bw) solid transparent;font-size:.92rem;min-height:2.2rem}
-.phases li .ic{font-family:var(--font-mono);text-align:center;color:var(--muted)}
-.phases li .who{font-size:.8rem;color:var(--muted)}
-.phases li.done{color:var(--muted)} .phases li.done .ic{color:var(--good-text)}
-.phases li[aria-current="step"]{font-weight:700;border-color:var(--line-strong);background:var(--surface-2)}
-.phases li[aria-current="step"].imu{background:var(--imu-wash);border-color:var(--imu)}
-.phases li[aria-current="step"].cv{background:var(--cv-wash);border-color:var(--cv)}
-.progress{height:.6rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);overflow:hidden;position:relative}
-.progress .bar{height:100%;background:var(--imu);width:0}
-.progress .bar.cv{background:var(--cv)}
-.progress .thr{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--cv);left:80%}
+/* ---- stepper and progress ---- */
+.phases{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.1rem}
+.phases li{display:grid;grid-template-columns:1.6rem 1fr auto;gap:.6rem;align-items:center;padding:.35rem .5rem;border-radius:var(--r);border:var(--bw) solid transparent;min-height:2.3rem;font-size:var(--t-callout)}
+.phases li .ic{color:var(--muted)} .phases li .who{font-size:var(--t-foot);color:var(--muted)}
+.phases li.done{color:var(--muted)} .phases li.done .ic{color:var(--good)}
+.phases li[aria-current="step"]{font-weight:700;background:var(--surface-2);border-color:var(--line-strong)} .phases li[aria-current="step"] .ic{color:inherit}
+.phases li[aria-current="step"].imu{background:var(--imu-wash);border-color:var(--imu)} .phases li[aria-current="step"].cv{background:var(--cv-wash);border-color:var(--cv)}
+.phases li[aria-current="step"].crit{border-color:var(--crit)} .phases li[aria-current="step"].good{border-color:var(--good)}
+.progress{height:.6rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);position:relative;overflow:visible;margin-bottom:1.4rem}
+.progress .bar{height:100%;border-radius:999px;background:var(--imu);width:0} .progress .bar.cv{background:var(--cv)}
+.progress .thr{position:absolute;top:-4px;bottom:-4px;left:80%;width:3px;background:var(--cv)}
+.progress .thr-l{position:absolute;top:.9rem;left:80%;transform:translateX(-50%);font-size:var(--t-foot);color:var(--muted);white-space:nowrap}
 
-/* ---- 3D view ---- */
-.view-tools{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}
-.seg{display:inline-flex;gap:.25rem;flex-wrap:wrap}
-.view-wrap{position:relative;width:100%;aspect-ratio:4/3;max-width:100%;min-height:320px;border-radius:var(--radius);overflow:hidden;border:var(--bw) solid var(--line);background:var(--ground)}
-.view-wrap canvas{display:block;width:100%;height:100%}
-.view-wrap:focus-visible{outline-offset:-3px}
-.view-badge{position:absolute;left:.6rem;top:.6rem;background:var(--surface);border:var(--bw) solid var(--line);border-radius:var(--radius);padding:.2rem .5rem;font-size:.8rem}
-.summary{position:absolute;inset:auto 0 0 0;margin:0;max-width:none;width:auto;border:0;border-top:3px solid var(--good);border-radius:0;background:var(--surface);color:var(--ink);padding:.9rem 1rem;box-shadow:0 -4px 16px rgba(0,0,0,.25)}
-.summary.crit{border-top-color:var(--crit)}
-.summary.warn{border-top-color:var(--warn-text)}
-.summary[open]{display:flex;flex-direction:column;gap:.6rem}
-.summary .kv{grid-template-columns:auto 1fr auto 1fr;font-size:.9rem}
-@media (max-width:600px){ .summary .kv{grid-template-columns:auto 1fr} }
-.summary .btn-row{justify-content:flex-end}
-.summary .btn.primary{min-height:48px;padding-inline:1.4rem}
-.legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;font-size:.82rem;color:var(--muted);list-style:none;margin:0;padding:0}
+/* ---- flight view ---- */
+.view-wrap{position:relative;width:100%;aspect-ratio:16/10;max-width:100%;min-height:340px;border-radius:var(--r);overflow:hidden;border:var(--bw) solid var(--line);background:var(--ground);cursor:grab;touch-action:pan-y}
+.view-wrap.dragging{cursor:grabbing} .view-wrap canvas{display:block;width:100%;height:100%} .view-wrap:focus-visible{outline-offset:-3px}
+.summary{position:absolute;inset:auto 0 0 0;margin:0;max-width:none;width:auto;border:0;border-top:3px solid var(--good);border-radius:0;background:var(--surface);color:var(--ink);padding:.8rem 1rem;box-shadow:0 -4px 16px rgba(0,0,0,.2)}
+.summary.crit{border-top-color:var(--crit)} .summary.warn{border-top-color:var(--warn)}
+.summary[open]{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;align-items:center}
+.summary .sum-head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap} .summary h3{font-size:var(--t-h3)}
+.summary .kv{grid-template-columns:auto auto auto auto auto auto;gap:.2rem .9rem;font-size:var(--t-foot)}
+@media (max-width:700px){ .summary .kv{grid-template-columns:auto 1fr auto 1fr} }
+.summary .btn-row{margin-left:auto}
+.legend{display:flex;flex-wrap:wrap;gap:.35rem 1rem;font-size:var(--t-foot);color:var(--muted);list-style:none;margin:0;padding:0}
 .legend li{display:inline-flex;align-items:center;gap:.4rem}
-.sw{width:1rem;height:.5rem;border-radius:2px;display:inline-block}
-.sw.line{height:2px} .sw.dash{height:0;border-top:2px dashed var(--muted)} .sw.ring{width:.75rem;height:.75rem;border-radius:50%;border:2px solid var(--cv);background:transparent}
-.readout{font-size:.95rem;padding:.6rem .75rem;background:var(--surface-2);border-radius:var(--radius);border-left:4px solid var(--accent)}
-.replay{display:none;flex-direction:column;gap:.25rem}
-.replay.on{display:flex}
+.sw{width:1rem;height:.5rem;border-radius:2px;display:inline-block} .sw.line{height:3px} .sw.dash{height:0;border-top:2px dashed var(--muted)} .sw.ring{width:.75rem;height:.75rem;border-radius:50%;border:2px solid var(--cv);background:transparent}
+.readout{font-size:var(--t-callout);padding:.6rem .8rem;background:var(--surface-2);border-radius:var(--r);border-left:4px solid var(--fish)}
+.replay{display:none;flex-direction:column;gap:.25rem} .replay.on{display:flex}
 
 /* ---- charts ---- */
-.chart{display:flex;flex-direction:column;gap:.35rem;position:relative}
+.trends{display:grid;grid-template-columns:1fr 1fr;gap:1rem} @media (max-width:700px){ .trends{grid-template-columns:1fr} }
+.chart{display:flex;flex-direction:column;gap:.35rem;position:relative;min-width:0}
 .chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap}
 .chart-head .now{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:600}
-.chart svg{width:100%;height:auto;display:block;border-radius:var(--radius)}
-.chart svg:focus-visible{outline:3px solid var(--focus)}
-.chart .grid line{stroke:var(--line);stroke-width:1}
-.chart .axis text{fill:var(--muted);font-size:9px;font-family:var(--font-mono)}
-.chart .area{opacity:.12}
-.chart .series{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.chart .hair{stroke:var(--line-strong);stroke-width:1}
-.chart .dot{stroke:var(--surface);stroke-width:2}
-.tip{position:absolute;pointer-events:none;background:var(--surface);border:var(--bw) solid var(--line-strong);border-radius:var(--radius);padding:.25rem .5rem;font-size:.8rem;display:none;box-shadow:var(--shadow);white-space:nowrap;z-index:5}
-.tip strong{font-family:var(--font-mono);font-size:.9rem}
-.tip.on{display:block}
-.chart table{border-collapse:collapse;width:100%;font-size:.85rem;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-.chart th,.chart td{text-align:right;padding:.2rem .4rem;border-bottom:1px solid var(--line)}
-.chart th{font-weight:600;color:var(--muted)}
-.chart-table[hidden]{display:none}
-.btn.small{min-height:36px;padding:.25rem .6rem;font-size:.85rem;font-weight:400}
+.chart svg{width:100%;height:auto;display:block;border-radius:var(--r)} .chart svg:focus-visible{outline:3px solid var(--focus)}
+.chart .grid line{stroke:var(--line);stroke-width:1} .chart .axis text{fill:var(--muted);font-size:11px;font-family:var(--font-mono)}
+.chart .ref{stroke:var(--cv);stroke-width:1;stroke-dasharray:4 3} .chart .ref-l{fill:var(--cv);font-size:11px;font-family:var(--font-mono)}
+.chart .area{opacity:.12} .chart .series{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round} .chart .hair{stroke:var(--line-strong);stroke-width:1} .chart .dot{stroke:var(--surface);stroke-width:2}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:var(--bw) solid var(--line-strong);border-radius:var(--r);padding:.25rem .5rem;font-size:var(--t-foot);display:none;box-shadow:var(--shadow);white-space:nowrap;z-index:5}
+.tip strong{font-family:var(--font-mono)} .tip.on{display:block}
+.chart table{border-collapse:collapse;width:100%;font-size:var(--t-foot);font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.chart th,.chart td{text-align:right;padding:.2rem .4rem;border-bottom:1px solid var(--line)} .chart th{font-weight:600;color:var(--muted)}
 
 /* ---- vision ---- */
-.ir-wrap{position:relative;width:100%;aspect-ratio:4/3;max-width:100%;border-radius:var(--radius);overflow:hidden;border:var(--bw) solid var(--line);background:#0a0a0a}
-.ir-wrap img{display:block;width:100%;height:100%;object-fit:contain}
-.ir-wrap .nostream{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c8d7e6;font-size:.95rem}
-.lock{display:flex;align-items:center;gap:.5rem;font-weight:700}
-.lock .ic{font-family:var(--font-mono)}
-.meter{display:grid;grid-template-columns:1fr 4rem;gap:.5rem;align-items:center;font-size:.9rem}
-.swarms{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem}
-.swarms .btn{width:100%;justify-content:space-between;font-weight:400;min-height:40px}
-.swarms .btn[aria-pressed="true"]{font-weight:700;border-color:var(--cv);background:var(--cv-wash)}
+.ir-wrap{position:relative;width:100%;aspect-ratio:4/3;max-width:100%;border-radius:var(--r);overflow:hidden;border:var(--bw) solid var(--line);background:var(--surface-2)}
+.ir-wrap.live{background:#000} .ir-wrap img{display:block;width:100%;height:100%;object-fit:contain}
+.ir-wrap .nostream{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:var(--t-callout);text-align:center;padding:1rem}
 .ir-wrap.pickable{cursor:crosshair}
-.meter .track{height:.7rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);overflow:hidden}
-.meter .fill{height:100%;background:var(--cv);width:0}
+.ir-cap{position:absolute;left:.5rem;bottom:.5rem;display:flex;gap:.4rem;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .55rem;border-radius:999px;background:var(--surface);border:var(--bw) solid var(--line);font-size:var(--t-foot)}
+.chip.cv{border-color:var(--cv);background:var(--cv-wash)}
+.lock{display:flex;align-items:center;gap:.5rem;font-weight:700} .lock .ic{color:var(--cv)}
+.meter{display:grid;grid-template-columns:1fr 4rem;gap:.5rem;align-items:center;font-size:var(--t-callout)}
+.meter .track{height:.75rem;border-radius:999px;background:var(--surface-2);border:var(--bw) solid var(--line);position:relative;overflow:visible}
+.meter .fill{height:100%;border-radius:999px;background:var(--cv);width:0} .meter .thr{position:absolute;top:-4px;bottom:-4px;left:60%;width:2px;background:var(--ink)}
 .meter output{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+.swarms{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.swarms .btn{width:100%;justify-content:space-between;min-height:44px}
+.swarms .btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:700}
 
 /* ---- fins ---- */
+.scale{display:grid;grid-template-columns:8rem 1fr 4.5rem;gap:.5rem;font-size:var(--t-foot);color:var(--muted);font-family:var(--font-mono)} .scale .s{display:flex;justify-content:space-between}
 .fins{display:flex;flex-direction:column;gap:.5rem}
-.fin{display:grid;grid-template-columns:8.5rem 1fr 4.5rem;gap:.5rem;align-items:center;font-size:.88rem}
-.gauge{position:relative;height:1rem;background:var(--surface-2);border:var(--bw) solid var(--line);border-radius:999px;overflow:hidden}
+.fin{display:grid;grid-template-columns:8rem 1fr 4.5rem;gap:.5rem;align-items:center;font-size:var(--t-callout)}
+.gauge{position:relative;height:1.1rem;background:var(--surface-2);border:var(--bw) solid var(--line);border-radius:999px;overflow:visible}
 .gauge .c{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--line-strong);transform:translateX(-50%)}
-.gauge .act{position:absolute;top:2px;bottom:2px;background:var(--accent);border-radius:2px}
-.gauge .cmd{position:absolute;top:0;bottom:0;width:3px;background:var(--ink);transform:translateX(-50%)}
+.gauge .act{position:absolute;top:3px;bottom:3px;background:var(--accent);border-radius:2px;min-width:2px}
+.gauge .cmd{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--ink);transform:translateX(-50%)}
 .fin output{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
-.override-box{display:flex;flex-direction:column;gap:.5rem}
-.banner{padding:.5rem .75rem;border-radius:var(--radius);border:var(--bw) solid var(--warn-text);background:var(--surface-2);font-size:.9rem;display:none}
-.banner.on{display:block}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:44px;font-size:var(--t-callout)}
+.banner{padding:.5rem .75rem;border-radius:var(--r);border:var(--bw) solid var(--warn);background:var(--surface-2);font-size:var(--t-callout);display:none} .banner.on{display:block}
 
 /* ---- log ---- */
 .log-tools{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center}
-.log{list-style:none;margin:0;padding:.5rem;height:12rem;overflow:auto;border:var(--bw) solid var(--line);border-radius:var(--radius);background:var(--surface-2);font-size:.88rem;display:flex;flex-direction:column;gap:.15rem}
-.log li{display:grid;grid-template-columns:5.5rem 1.6rem 1fr;gap:.5rem;align-items:start}
-.log .ts{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
-.log .lv{font-family:var(--font-mono);text-align:center}
-.log li.warn .lv{color:var(--warn-text)} .log li.crit .lv{color:var(--crit-text);font-weight:700} .log li.good .lv{color:var(--good-text)}
+.log{list-style:none;margin:0;padding:.5rem;height:11rem;overflow:auto;border:var(--bw) solid var(--line);border-radius:var(--r);background:var(--surface-2);font-size:var(--t-callout);display:flex;flex-direction:column;gap:.2rem}
+.log li{display:grid;grid-template-columns:7ch 1.4rem 1fr;gap:.6rem;align-items:start}
+.log .ts{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)} .log .lv{display:inline-flex;justify-content:center;font-family:var(--font-mono)}
+.log li.warn .lv{color:var(--warn)} .log li.crit .lv{color:var(--crit);font-weight:700} .log li.good .lv{color:var(--good)}
 
-/* ---- dialogs ---- */
-dialog{background:var(--surface);color:var(--ink);border:var(--bw) solid var(--line-strong);border-radius:10px;padding:1.25rem;max-width:min(32rem,calc(100vw - 32px));width:100%}
-dialog::backdrop{background:rgba(0,0,0,.45)}
-dialog form{display:flex;flex-direction:column;gap:.9rem}
-.dlg-head{display:flex;justify-content:space-between;align-items:center;gap:1rem}
-.keys{border-collapse:collapse;width:100%;font-size:.92rem}
-.keys th,.keys td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--line)}
+/* ---- popovers (non-modal) ---- */
+.pop{position:fixed;top:calc(env(safe-area-inset-top,0px) + var(--bar-h) + 6px);right:16px;width:min(26rem,calc(100vw - 32px));max-height:calc(100vh - var(--bar-h) - 24px);overflow:auto;background:var(--surface);border:var(--bw) solid var(--line-strong);border-radius:12px;box-shadow:var(--pop-shadow);padding:1rem;display:flex;flex-direction:column;gap:.75rem;z-index:30}
+.pop h2{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.keys{border-collapse:collapse;width:100%;font-size:var(--t-callout)} .keys td,.keys th{padding:.35rem .3rem;border-bottom:1px solid var(--line);text-align:left} .keys td:first-child{width:7.5rem}
 kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;padding:0 .35rem;font-size:.85em;background:var(--surface-2)}
+.seg-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;min-height:44px;font-size:var(--t-callout)}
 
-@media (prefers-reduced-motion: reduce){ :root{--motion:0} }
+@media (max-width:820px){
+  .bar{grid-template-columns:auto 1fr auto;height:auto;padding-block:.5rem;gap:.6rem}
+  .links{padding:.15rem .25rem} .pill{padding:.15rem .35rem;gap:.25rem} .pill .pill-k{display:none} .pill.sim span{display:none} .brand .foot{display:none}
+  .bar-mid{gap:.5rem} .clock{font-size:1rem;min-width:0} .btn.abort{padding-inline:.9rem}
+  .fin,.scale{grid-template-columns:6rem 1fr 4rem}
+}
+@media (max-width:1500px){ .pill.sim span{display:none} }
+@media (max-width:600px){ .bar{display:flex;flex-wrap:wrap;height:auto;padding-block:.4rem;row-gap:.35rem} .bar-lead{order:1;flex:1;min-width:0} .bar-trail{order:2} .bar-mid{order:3;flex-basis:100%;justify-content:space-between} .links{display:flex;gap:0} .pill{padding:.2rem .3rem} .pill .pill-v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)} .pill.sim .ic{display:none} .cue{top:auto;position:static} }
+@media (prefers-reduced-motion: reduce){ summary .ic{transition:none} }
 </style>
+</head>
+<body data-stage="disconnected">
 
-<a class="skip" href="#main">Skip to flight deck</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25"/><path d="M5.2 8.3l2 2 3.8-4"/></symbol>
+  <symbol id="i-cross" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 16 16"><path d="M4 8h8"/></symbol>
+  <symbol id="i-armed" viewBox="0 0 16 16"><path d="M8 1.75l5 2v4c0 3-2.2 5.3-5 6.5-2.8-1.2-5-3.5-5-6.5v-4z"/><path d="M8.6 5L6.5 8.5h2l-.9 2.8L10 7.5H8z"/></symbol>
+  <symbol id="i-glide" viewBox="0 0 16 16"><path d="M2 11c1.5-1.4 3-1.4 4.5 0s3 1.4 4.5 0 3-1.4 3 0"/><path d="M4 6l4-3.5L12 6M8 2.5v6"/></symbol>
+  <symbol id="i-handover" viewBox="0 0 16 16"><path d="M2.5 5.5h9l-2.5-2.5M13.5 10.5h-9l2.5 2.5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 16 16"><path d="M3.5 14V2.5h8l-2 3 2 3h-8"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16"><path d="M5.5 2h5l3.5 3.5v5L10.5 14h-5L2 10.5v-5z"/></symbol>
+  <symbol id="i-plug-off" viewBox="0 0 16 16"><path d="M6 2v3M10 2v3M4 5h8v2.5a4 4 0 0 1-8 0zM8 11.5V14"/><path d="M2.5 2.5l11 11"/></symbol>
+  <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M5 11l-1 1a2.5 2.5 0 0 1-3.5-3.5l2-2A2.5 2.5 0 0 1 6 6.5M11 5l1-1a2.5 2.5 0 0 1 3.5 3.5l-2 2A2.5 2.5 0 0 1 10 9.5"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 16 16"><path d="M2 5.5h3l1-2h4l1 2h3v7.5H2z"/><circle cx="8" cy="9" r="2.3"/></symbol>
+  <symbol id="i-gyro" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="6" ry="2.5"/><path d="M8 2v12"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 7h1M7 7h1M10 7h2M4 9.5h8"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5 3v10M11 3v10"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16"><path d="M4.5 3l8 5-8 5z"/></symbol>
+  <symbol id="i-swarm" viewBox="0 0 16 16"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="6" r="1.6"/><circle cx="8" cy="11" r="1.6"/><path d="M6.4 5.7l3-1M9.9 7.4l-1.2 2M6.2 6.2l1.2 3.3"/></symbol>
+  <symbol id="i-beacon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><path d="M4.5 4.5a5 5 0 0 0 0 7M11.5 4.5a5 5 0 0 1 0 7M2.5 2.5a8 8 0 0 0 0 11M13.5 2.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-hold" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+  <symbol id="i-sim" viewBox="0 0 16 16"><path d="M2 5.5h12v6H2z"/><path d="M5 11.5v2M11 11.5v2M4 5.5V3h8v2.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.5l6 11H2z"/><path d="M8 6.5v3.5M8 12.2v.1"/></symbol>
+</svg>
 
-<header class="topbar">
-  <div class="brand"><span class="brand-name">Fish GCS</span><span class="brand-sub" id="brand-sub">Ground station</span></div>
-  <ul class="links" aria-label="Link status">
-    <li class="pill" id="pill-srv"><span class="dot" aria-hidden="true"></span><span class="pill-k">Server</span><span class="pill-v mono" id="pill-srv-v">connecting</span></li>
-    <li class="pill" id="pill-fin"><span class="dot" aria-hidden="true"></span><span class="pill-k">Fin board</span><span class="pill-v mono" id="pill-fin-v">no link</span></li>
-    <li class="pill" id="pill-cam"><span class="dot" aria-hidden="true"></span><span class="pill-k">Camera</span><span class="pill-v mono" id="pill-cam-v">no stream</span></li>
-    <li class="pill" id="pill-imu"><span class="dot" aria-hidden="true"></span><span class="pill-k">IMU</span><span class="pill-v mono" id="pill-imu-v">no data</span></li>
-  </ul>
-  <div class="phase-now" id="phase-now" aria-label="Current phase"><span class="phase-icon" id="phase-icon" aria-hidden="true">○</span><span id="phase-label">Disconnected</span><span class="mono" id="phase-pct"></span></div>
-  <div class="clock" id="clock" aria-label="Mission clock">T−00:00.0</div>
-  <div class="topbar-actions">
-    <button class="btn ghost" id="btn-keys" aria-haspopup="dialog">Keys <span aria-hidden="true">?</span></button>
-    <button class="btn ghost" id="btn-settings" aria-haspopup="dialog">Settings</button>
-    <button class="btn abort" id="btn-abort" disabled>ABORT</button>
+<a class="skip" href="#main">Skip to the console</a>
+
+<header class="bar">
+  <div class="bar-lead">
+    <div class="brand"><h1>Maelstrom</h1><span class="foot" id="brand-sub">Ground station</span></div>
+    <ul class="links" aria-label="Link status">
+      <li class="pill" id="pill-fin"><span class="dot" aria-hidden="true"></span><span class="pill-k">Fins</span><span class="pill-v" id="pill-fin-v">no link</span></li>
+      <li class="pill" id="pill-cam"><span class="dot" aria-hidden="true"></span><span class="pill-k">Camera</span><span class="pill-v" id="pill-cam-v">no stream</span></li>
+      <li class="pill" id="pill-imu"><span class="dot" aria-hidden="true"></span><span class="pill-k">IMU</span><span class="pill-v" id="pill-imu-v">no data</span></li>
+      <li class="pill sim" id="pill-sim" aria-label="Simulated fish" hidden><svg class="ic"><use href="#i-sim"/></svg><span>Simulated</span></li>
+    </ul>
   </div>
-  <div class="cue" id="cue" hidden><span class="cue-ic" id="cue-ic" aria-hidden="true"></span><span id="cue-text" role="status" aria-live="assertive"></span><span class="cue-count mono" id="cue-count" aria-hidden="true"></span><button class="btn small" id="cue-cancel" hidden>Cancel launch</button></div>
+  <div class="bar-mid">
+    <div class="phase-now" id="phase-now" aria-label="Current phase"><svg class="ic" aria-hidden="true"><use id="phase-icon" href="#i-plug-off"/></svg><span id="phase-label">Disconnected</span><span class="mono" id="phase-pct"></span></div>
+    <div class="clock" id="clock" aria-label="Mission clock">T−00:00.0</div>
+  </div>
+  <div class="bar-trail">
+    <button class="btn icon quiet" id="btn-keys" aria-label="Keyboard shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="dlg-keys"><svg class="ic"><use href="#i-keyboard"/></svg></button>
+    <button class="btn icon quiet" id="btn-settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="dlg-settings"><svg class="ic"><use href="#i-gear"/></svg></button>
+    <button class="btn abort" id="btn-abort" disabled>Abort</button>
+  </div>
 </header>
+<div class="cue" id="cue" hidden><svg class="ic" aria-hidden="true"><use id="cue-ic" href="#i-play"/></svg><span id="cue-text" role="status" aria-live="assertive"></span><span class="cue-count" id="cue-count" aria-hidden="true"></span><button class="btn" id="cue-cancel" hidden>Cancel launch</button></div>
+
+<div class="pop" id="dlg-settings" role="dialog" aria-labelledby="h-settings" hidden>
+  <h2 id="h-settings">Settings <button class="btn icon quiet" type="button" data-close="dlg-settings" aria-label="Close settings"><svg class="ic"><use href="#i-cross"/></svg></button></h2>
+  <div class="seg-row"><span id="l-theme">Appearance</span><div class="seg" role="group" aria-labelledby="l-theme" data-setting="theme"><button class="btn" data-value="system">System</button><button class="btn" data-value="light">Light</button><button class="btn" data-value="dark">Dark</button></div></div>
+  <div class="seg-row"><span id="l-contrast">Increase contrast</span><div class="seg" role="group" aria-labelledby="l-contrast" data-setting="contrast"><button class="btn" data-value="system">System</button><button class="btn" data-value="on">On</button><button class="btn" data-value="off">Off</button></div></div>
+  <div class="seg-row"><span id="l-size">Text size</span><div class="seg" role="group" aria-labelledby="l-size" data-setting="size"><button class="btn" data-value="100">100 %</button><button class="btn" data-value="125">125 %</button><button class="btn" data-value="150">150 %</button></div></div>
+  <div class="seg-row"><span id="l-motion">Motion</span><div class="seg" role="group" aria-labelledby="l-motion" data-setting="motion"><button class="btn" data-value="system">System</button><button class="btn" data-value="reduce">Reduce</button></div></div>
+  <div class="seg-row"><span id="l-count">Launch countdown</span><div class="seg" role="group" aria-labelledby="l-count" data-setting="count"><button class="btn" data-value="3">3 s</button><button class="btn" data-value="5">5 s</button><button class="btn" data-value="10">10 s</button></div></div>
+  <div class="seg-row"><span id="l-units">Units</span><div class="seg" role="group" aria-labelledby="l-units" data-setting="units"><button class="btn" data-value="m">Metres</button><button class="btn" data-value="ft">Feet</button><button class="btn" data-value="game">Game ×100</button></div></div>
+  <p class="hint" id="units-hint" hidden>Game units: every distance reads 100× its real value and the launch speed is labelled m/s. Calculations are untouched.</p>
+  <div class="seg-row"><span id="l-verb">Screen reader announces</span><div class="seg" role="group" aria-labelledby="l-verb" data-setting="verb"><button class="btn" data-value="all">Every event</button><button class="btn" data-value="phase">Phases and alerts</button></div></div>
+  <label class="check"><input type="checkbox" id="st-keys" checked> Single-key shortcuts (X, S, A, L, N, P, 1 to 3, [ ])</label>
+  <p class="hint">Stored in this browser only. Abort keeps working while this is open.</p>
+</div>
+<div class="pop" id="dlg-keys" role="dialog" aria-labelledby="h-keys" hidden>
+  <h2 id="h-keys">Keyboard shortcuts <button class="btn icon quiet" type="button" data-close="dlg-keys" aria-label="Close shortcuts"><svg class="ic"><use href="#i-cross"/></svg></button></h2>
+  <table class="keys"><thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead><tbody>
+    <tr><td><kbd>X</kbd></td><td>Abort. Any stage after Ready, single press.</td></tr>
+    <tr><td><kbd>S</kbd></td><td>Stop mission, back to Ready.</td></tr>
+    <tr><td><kbd>A</kbd></td><td>Arm, then Confirm arm.</td></tr>
+    <tr><td><kbd>L</kbd></td><td>Launch (starts the countdown).</td></tr>
+    <tr><td><kbd>N</kbd></td><td>Fins to neutral.</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Pause or resume the flight view.</td></tr>
+    <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Camera: Follow, Side, Top.</td></tr>
+    <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous or next swarm.</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Orbit the flight view when it has focus; <kbd>+</kbd> <kbd>−</kbd> zoom, <kbd>Home</kbd> resets.</td></tr>
+    <tr><td><kbd>?</kbd></td><td>This list.</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Close this. Never aborts.</td></tr>
+  </tbody></table>
+  <p class="hint">Single keys with no modifier; turn them off in Settings when typing a lot. Every action is also a button.</p>
+</div>
 
 <nav class="jump" aria-label="Jump to">
-  <a href="#sec-mission">Mission setup</a><a href="#sec-guidance">Guidance</a><a href="#sec-view">3D view</a><a href="#sec-charts">Charts</a><a href="#sec-vision">Vision</a><a href="#sec-fins">Fins</a><a href="#sec-log">Event log</a>
+  <a href="#sec-mission">Mission</a><a href="#sec-guidance">Guidance</a><a href="#sec-view">Flight view</a><a href="#sec-charts">Trends</a><a href="#sec-vision">Vision</a><a href="#sec-fins">Fins</a><a href="#sec-log">Log</a>
 </nav>
 
 <main id="main" class="deck">
 
-  <!-- ================= MISSION SETUP ================= -->
+  <!-- ================= MISSION ================= -->
   <section class="panel" id="sec-mission" aria-labelledby="h-mission">
-    <div class="panel-head"><h2 id="h-mission">Mission setup</h2><span class="sub">F2</span></div>
-
-    <fieldset>
-      <legend>1 · Connect over hotspot</legend>
+    <div class="panel-head"><h2 id="h-mission">Mission</h2><span class="foot" id="apply-hint" hidden></span></div>
+    <div class="group first">
+      <h3><span class="step" id="step-1" aria-hidden="true">1</span>Connect over hotspot</h3>
       <div class="field"><label for="ip-fin">Fin board IP</label><input type="text" id="ip-fin" value="172.20.10.12" inputmode="decimal" aria-describedby="ip-fin-msg"><span id="ip-fin-msg" class="hint">ESP32-S3, UDP 4210</span></div>
       <div class="field"><label for="ip-cam">Camera IP</label><input type="text" id="ip-cam" value="172.20.10.13" inputmode="decimal" aria-describedby="ip-cam-msg"><span id="ip-cam-msg" class="hint">ESP32-CAM, MJPEG :81/stream</span></div>
-      <div class="btn-row"><button class="btn primary" id="btn-connect">Connect</button><button class="btn" id="btn-disconnect" disabled>Disconnect</button></div>
-    </fieldset>
-
-    <fieldset>
-      <legend>2 · Mission target and speed</legend>
-      <div class="field"><label for="m-speed">Launch speed (m/s)</label><input type="number" id="m-speed" value="80" min="1" max="2000" step="1" aria-describedby="m-speed-msg"><span id="m-speed-msg" class="hint">Starting speed for dead reckoning and the expected flight time.</span></div>
-      <div class="field"><span id="m-xyz-label">Target, centimetres from the launch point: x right, y up, z ahead of the nose at launch</span>
+      <div class="btn-row"><button class="btn" id="btn-connect">Connect</button><button class="btn" id="btn-disconnect" disabled>Disconnect</button><span class="hint" id="connect-hint"></span></div>
+    </div>
+    <div class="group">
+      <h3><span class="step" id="step-2" aria-hidden="true">2</span>Target and speed</h3>
+      <div class="field"><label for="m-speed">Launch speed</label><div class="input"><input type="number" id="m-speed" value="80" min="1" max="2000" step="1" inputmode="numeric" aria-describedby="m-speed-msg"><span class="unit" id="u-speed">cm/s</span></div><span id="m-speed-msg" class="hint">Starting speed for dead reckoning and the expected flight time.</span></div>
+      <div class="field"><span class="lbl" id="m-xyz-label">Target from the launch point</span>
         <div class="xyz" role="group" aria-labelledby="m-xyz-label">
-          <input type="number" id="m-x" value="200" step="1" aria-label="Target x, centimetres"><input type="number" id="m-y" value="800" step="1" aria-label="Target y, centimetres up"><input type="number" id="m-z" value="100" step="1" aria-label="Target z, centimetres">
-        </div>
-      </div>
-      <div class="btn-row"><button class="btn primary" id="btn-apply-mission">Apply mission</button><button class="btn" id="btn-sample-init">Fill sample values</button></div>
-      <p id="apply-hint" class="hint" hidden></p>
-      <p id="init-msg" class="hint">No mission set yet.</p>
+          <div class="field"><label for="m-x">x · right</label><div class="input"><input type="number" id="m-x" value="200" step="1" inputmode="numeric"><span class="unit u-cm">cm</span></div></div>
+          <div class="field"><label for="m-y">y · up</label><div class="input"><input type="number" id="m-y" value="800" step="1" inputmode="numeric"><span class="unit u-cm">cm</span></div></div>
+          <div class="field"><label for="m-z">z · ahead</label><div class="input"><input type="number" id="m-z" value="100" step="1" inputmode="numeric"><span class="unit u-cm">cm</span></div></div>
+        </div></div>
+      <div class="btn-row"><button class="btn" id="btn-apply-mission">Apply mission</button><button class="btn quiet" id="btn-sample-init">Fill sample values</button></div>
+      <p id="init-msg" class="hint">No mission applied yet.</p>
       <dl class="kv" id="init-kv" hidden>
-        <dt>Distance</dt><dd id="init-dist">—</dd>
+        <dt>Path</dt><dd id="init-dist">—</dd>
         <dt>Expected flight time</dt><dd id="init-eta">—</dd>
-        <dt>Hand-over point</dt><dd id="init-ho">—</dd>
-        <dt>Pre-filled from</dt><dd id="init-src">—</dd>
+        <dt>Hand-over</dt><dd id="init-ho">—</dd>
+        <dt>Values from</dt><dd id="init-src">—</dd>
       </dl>
-      <div class="field"><label for="init-file">Optional: pre-fill from microSD init file (CSV or JSON)</label><input type="file" id="init-file" accept=".csv,.json,.txt" aria-describedby="init-file-msg"><span id="init-file-msg" class="hint">Fills the fields above; you still press Apply mission.</span></div>
-    </fieldset>
-
-    <fieldset>
-      <legend>3 · Optional checks, then arm</legend>
+      <details><summary><svg class="ic" aria-hidden="true"><use href="#i-chevron"/></svg>Pre-fill from a microSD init file</summary>
+        <div class="field"><label for="init-file">Init file (CSV or JSON, metres and m/s)</label><input type="file" id="init-file" accept=".csv,.json,.txt" aria-describedby="init-file-msg"><span id="init-file-msg" class="hint">Fills the fields above; you still press Apply mission.</span></div>
+      </details>
+    </div>
+    <div class="group">
+      <h3><span class="step" id="step-3" aria-hidden="true">3</span>Checks and arm</h3>
       <div class="btn-row"><button class="btn" id="btn-cal" disabled>Calibrate IMU</button><button class="btn" id="btn-selftest" disabled>Fin self-test</button></div>
       <p id="cal-msg" class="hint">Optional, any number of times before arming. Hold the fish still for 3 s during calibration.</p>
-      <p class="pf-group" id="pf-req-h">Required to arm</p>
+      <p class="eyebrow" id="pf-req-h">Required to arm</p>
       <ul class="checklist" aria-labelledby="pf-req-h">
-        <li id="pf-link"><span class="mark" aria-hidden="true">✘</span><span>Fin board and camera linked</span><span class="val"></span></li>
-        <li id="pf-init"><span class="mark" aria-hidden="true">✘</span><span>Mission applied</span><span class="val"></span></li>
+        <li id="pf-link"><span class="mark"></span><span>Fin board and camera linked</span><span class="val"></span></li>
+        <li id="pf-init"><span class="mark"></span><span>Mission applied</span><span class="val"></span></li>
       </ul>
-      <p class="pf-group" id="pf-adv-h">Recommended, not required</p>
+      <p class="eyebrow" id="pf-adv-h">Recommended</p>
       <ul class="checklist" aria-labelledby="pf-adv-h">
-        <li id="pf-cal" class="adv"><span class="mark" aria-hidden="true">–</span><span>IMU calibrated</span><span class="val"></span></li>
-        <li id="pf-fins" class="adv"><span class="mark" aria-hidden="true">–</span><span>Fins responded to self-test</span><span class="val"></span></li>
-        <li id="pf-batt" class="adv"><span class="mark" aria-hidden="true">–</span><span>Battery above 7.0 V</span><span class="val"></span></li>
+        <li id="pf-cal" class="adv"><span class="mark"></span><span>IMU calibrated</span><span class="val"></span></li>
+        <li id="pf-fins" class="adv"><span class="mark"></span><span>Fins responded to self-test</span><span class="val"></span></li>
+        <li id="pf-batt" class="adv"><span class="mark"></span><span>Battery above 7.0 V</span><span class="val"></span></li>
       </ul>
       <div class="btn-row">
-        <button class="btn warnbtn" id="btn-arm" disabled>Arm</button>
-        <button class="btn primary" id="btn-launch" disabled>Launch</button>
+        <button class="btn" id="btn-arm" disabled>Arm</button>
+        <button class="btn" id="btn-launch" disabled>Launch</button>
+        <span class="hint" id="arm-skipped" hidden></span>
       </div>
-      <p id="arm-skipped" class="hint" hidden></p>
-      <label class="check"><input type="checkbox" id="opt-autolaunch" checked> Detect launch from accelerometer</label>
+      <label class="check"><input type="checkbox" id="opt-autolaunch" checked> Detect the throw with the accelerometer</label>
       <p id="arm-msg" class="hint"></p>
-    </fieldset>
+    </div>
   </section>
 
   <!-- ================= GUIDANCE ================= -->
   <section class="panel" id="sec-guidance" aria-labelledby="h-guidance">
-    <div class="panel-head"><h2 id="h-guidance">Guidance</h2><span class="sub">F3</span></div>
-    <ol class="phases" id="phases" aria-label="Mission phases"></ol>
-    <div class="btn-row"><button class="btn" id="btn-stop" disabled>Stop mission</button></div>
-    <p class="hint" id="stop-hint">Ends the mission and returns to Ready with the fins neutral. The link, calibration and parameters are kept, so you can edit and apply again.</p>
+    <div class="panel-head"><h2 id="h-guidance">Guidance</h2><div class="btn-row"><button class="btn" id="btn-stop" disabled>Stop mission</button></div></div>
+    <ol class="phases" id="phases" aria-label="Mission stages"></ol>
+    <p class="hint" id="stop-hint">Stop ends the mission and returns to Ready with the fins neutral. Link, calibration and parameters are kept.</p>
     <div>
-      <div class="progress" aria-hidden="true"><div class="bar" id="prog-bar"></div><div class="thr" id="prog-thr"></div></div>
-      <p class="hint" id="prog-text">Progress 0 % of the path · hand-over at 80 %</p>
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Path covered under IMU"><div class="bar" id="prog-bar"></div><div class="thr" id="prog-thr" aria-hidden="true"></div><span class="thr-l" id="prog-thr-l" aria-hidden="true">hand-over 80 %</span></div>
+      <p class="hint" id="prog-text">0 % of the path · hand-over at 80 %</p>
     </div>
-    <div class="field">
-      <label for="thr">Hand-over threshold (% of path under IMU)</label>
-      <div class="slider-row"><input type="range" id="thr" min="60" max="95" step="1" value="80" aria-describedby="thr-hint"><input type="number" id="thr-n" min="60" max="95" step="1" value="80" aria-label="Hand-over threshold, percent"></div>
-      <span id="thr-hint" class="hint">Vision takes over for the remaining part. Applies when you release the slider.</span>
-    </div>
-    <div>
+    <div class="group">
       <h3>Hand-over conditions</h3>
       <ul class="checklist" id="ho-list" aria-label="Hand-over conditions">
-        <li id="ho-prog" class="no"><span class="mark" aria-hidden="true">✘</span><span>Progress at threshold</span><span class="val" id="ho-prog-v">0 % / 80 %</span></li>
-        <li id="ho-frames" class="no"><span class="mark" aria-hidden="true">✘</span><span>Beacon seen 5 frames in a row</span><span class="val" id="ho-frames-v">0 / 5</span></li>
-        <li id="ho-conf" class="no"><span class="mark" aria-hidden="true">✘</span><span>Confidence at least 0.60</span><span class="val" id="ho-conf-v">0.00</span></li>
-        <li id="ho-link" class="no"><span class="mark" aria-hidden="true">✘</span><span>Fin link healthy</span><span class="val" id="ho-link-v">—</span></li>
+        <li id="ho-prog" class="no"><span class="mark"></span><span>Progress at threshold</span><span class="val" id="ho-prog-v">0 % / 80 %</span></li>
+        <li id="ho-frames" class="no"><span class="mark"></span><span>Beacon seen 5 frames in a row</span><span class="val" id="ho-frames-v">0 / 5</span></li>
+        <li id="ho-conf" class="no"><span class="mark"></span><span>Confidence at least 0.60</span><span class="val" id="ho-conf-v">0.00</span></li>
+        <li id="ho-link" class="no"><span class="mark"></span><span>Fin link healthy</span><span class="val" id="ho-link-v">—</span></li>
       </ul>
+      <div class="field">
+        <label for="thr">Hand-over threshold</label>
+        <div class="slider-row"><input type="range" id="thr" min="60" max="95" step="1" value="80" aria-describedby="thr-hint"><div class="input"><input type="number" id="thr-n" min="60" max="95" step="1" value="80" aria-label="Hand-over threshold, percent"><span class="unit">%</span></div></div>
+        <div class="ends" aria-hidden="true"><span>60</span><span>95</span></div>
+        <span id="thr-hint" class="hint">Share of the path flown on IMU before vision takes over. Applies when you release the slider.</span>
+      </div>
     </div>
-    <div>
-      <h3>IMU and estimate</h3>
+    <div class="group">
+      <h3>Estimate</h3>
       <dl class="kv">
-        <dt>Roll / pitch / yaw</dt><dd id="imu-att">—</dd>
-        <dt>Estimated position</dt><dd id="imu-pos">—</dd>
+        <dt>Roll · pitch · yaw</dt><dd id="imu-att">—</dd>
+        <dt>Position (x, y, z)</dt><dd id="imu-pos">—</dd>
         <dt>Distance to target</dt><dd class="hi" id="imu-dist">—</dd>
         <dt>Dead-reckoning drift</dt><dd id="imu-drift">—</dd>
       </dl>
     </div>
     <details>
-      <summary>Advanced guidance overrides</summary>
+      <summary><svg class="ic" aria-hidden="true"><use href="#i-chevron"/></svg>Advanced overrides</summary>
       <p class="hint">Use only if the automatic hand-over misbehaves. Both are logged.</p>
       <div class="btn-row"><button class="btn" id="btn-force-ho" disabled>Force hand-over now</button><button class="btn" id="btn-return-imu" disabled>Return to IMU</button></div>
     </details>
   </section>
 
-  <!-- ================= 3D VIEW ================= -->
-  <section class="panel" id="sec-view" aria-labelledby="h-view">
-    <div class="panel-head"><h2 id="h-view">3D flight view</h2><span class="sub">F4 · launch point to target, 1 grid square = 1 m</span></div>
-    <div class="view-tools">
-      <div class="seg" role="group" aria-label="Camera preset">
-        <button class="btn small" id="view-follow" aria-pressed="true">Follow</button>
-        <button class="btn small" id="view-side" aria-pressed="false">Side</button>
-        <button class="btn small" id="view-top" aria-pressed="false">Top</button>
+  <!-- ================= FLIGHT VIEW + TRENDS ================= -->
+  <div id="centre">
+    <section class="panel" id="sec-view" aria-labelledby="h-view">
+      <div class="panel-head"><h2 id="h-view">Flight view</h2>
+        <div class="btn-row">
+          <div class="seg" role="group" aria-label="Camera"><button class="btn" id="view-follow" aria-pressed="true">Follow</button><button class="btn" id="view-side" aria-pressed="false">Side</button><button class="btn" id="view-top" aria-pressed="false">Top</button></div>
+          <button class="btn quiet" id="btn-pause" aria-pressed="false"><svg class="ic" aria-hidden="true"><use id="pause-ic" href="#i-pause"/></svg><span id="pause-t">Pause</span></button>
+        </div></div>
+      <div class="view-wrap" id="view-wrap" tabindex="0" role="group" aria-label="3D flight view. Arrow keys orbit, plus and minus zoom, Home resets the camera. The text below describes the same information.">
+        <canvas id="view3d" aria-hidden="true"></canvas>
+        <dialog class="summary" id="dlg-summary" aria-labelledby="sum-title" aria-describedby="sum-desc">
+          <div class="sum-head"><h3 id="sum-title">Mission ended</h3><span id="sum-desc" class="foot"></span></div>
+          <dl class="kv" id="sum-kv">
+            <dt>Time</dt><dd id="sum-time">—</dd>
+            <dt>Final distance</dt><dd id="sum-dist">—</dd>
+            <dt>Path</dt><dd id="sum-prog">—</dd>
+            <dt>Hand-over</dt><dd id="sum-ho">—</dd>
+            <dt>Best confidence</dt><dd id="sum-conf">—</dd>
+            <dt>Max drift</dt><dd id="sum-drift">—</dd>
+          </dl>
+          <div class="btn-row"><button class="btn quiet" id="sum-close" type="button">Keep viewing</button><button class="btn primary" id="sum-ready" type="button">Back to Ready</button></div>
+        </dialog>
       </div>
-      <button class="btn small" id="btn-pause" aria-pressed="false">Pause view updates</button>
-    </div>
-    <div class="view-wrap" id="view-wrap" tabindex="0" role="group" aria-label="3D flight view. Arrow keys orbit, plus and minus zoom, Home resets the camera. The text below describes the same information.">
-      <canvas id="view3d" aria-hidden="true"></canvas>
-      <span class="view-badge" id="view-badge" aria-hidden="true">Follow</span>
-      <dialog class="summary" id="dlg-summary" aria-labelledby="sum-title" aria-describedby="sum-desc">
-        <div class="dlg-head"><h3 id="sum-title">Mission ended</h3><button class="btn small" id="sum-close" type="button" aria-label="Close summary, keep viewing the flight">Keep viewing</button></div>
-        <p id="sum-desc" class="hint"></p>
-        <dl class="kv" id="sum-kv">
-          <dt>Flight time</dt><dd id="sum-time">—</dd>
-          <dt>Final distance (estimate)</dt><dd id="sum-dist">—</dd>
-          <dt>Path covered</dt><dd id="sum-prog">—</dd>
-          <dt>Hand-over to vision</dt><dd id="sum-ho">—</dd>
-          <dt>Best beacon confidence</dt><dd id="sum-conf">—</dd>
-          <dt>Largest drift estimate</dt><dd id="sum-drift">—</dd>
-        </dl>
-        <div class="btn-row"><button class="btn primary" id="sum-ready" type="button">Back to Ready</button></div>
-      </dialog>
-    </div>
-    <ul class="legend" aria-label="Legend">
-      <li><span class="sw" style="background:var(--accent)"></span>Fish (IMU estimate)</li>
-      <li><span class="sw line" style="background:var(--imu)"></span>Trail, IMU glide</li>
-      <li><span class="sw line" style="background:var(--cv)"></span>Trail, vision homing</li>
-      <li><span class="sw dash"></span>Planned path</li>
-      <li><span class="sw ring"></span>Hand-over ring</li>
-      <li><span class="sw" style="background:var(--cv);border-radius:50%;width:.6rem;height:.6rem"></span>Beacon (target)</li>
-      <li><span class="sw" style="background:var(--muted);width:.8rem;height:.3rem"></span>Quad (swarm mode)</li>
-    </ul>
-    <p class="readout" id="readout">Not connected. Connect the fish to start receiving position data.</p>
-    <div class="replay" id="replay">
-      <label for="scrub">Replay flight (drag to scrub, Live returns to the end)</label>
-      <div class="slider-row"><input type="range" id="scrub" min="0" max="0" value="0" step="1"><button class="btn small" id="btn-live">Live</button></div>
-      <span class="hint mono" id="scrub-t">t = 0.0 s</span>
-    </div>
-  </section>
-
-  <!-- ================= CHARTS ================= -->
-  <section class="panel" id="sec-charts" aria-labelledby="h-charts">
-    <div class="panel-head"><h2 id="h-charts">Last 30 seconds</h2><span class="sub">F8</span></div>
-    <div class="chart" id="chart-dist">
-      <div class="chart-head"><h3>Distance to target (m)</h3><span class="now" id="chart-dist-now">—</span></div>
-      <svg role="img" tabindex="0" aria-label="Distance to target over the last 30 seconds"></svg>
-      <div class="tip" role="status" aria-live="off"></div>
-      <div><button class="btn small" aria-expanded="false" aria-controls="chart-dist-table">Show table</button></div>
-      <div class="chart-table" id="chart-dist-table" hidden></div>
-    </div>
-    <div class="chart" id="chart-err">
-      <div class="chart-head"><h3>Vision error (px)</h3><span class="now" id="chart-err-now">—</span></div>
-      <svg role="img" tabindex="0" aria-label="Vision pixel error over the last 30 seconds"></svg>
-      <div class="tip" role="status" aria-live="off"></div>
-      <div><button class="btn small" aria-expanded="false" aria-controls="chart-err-table">Show table</button></div>
-      <div class="chart-table" id="chart-err-table" hidden></div>
-    </div>
-  </section>
+      <ul class="legend" aria-label="Legend">
+        <li><span class="sw" style="background:var(--fish)"></span>Maelstrom (estimate)</li>
+        <li><span class="sw line" style="background:var(--imu)"></span>IMU trail</li>
+        <li><span class="sw line" style="background:var(--cv)"></span>Vision trail</li>
+        <li><span class="sw dash"></span>Planned path</li>
+        <li><span class="sw ring"></span>Hand-over ring</li>
+        <li><span class="sw" style="background:var(--cv);border-radius:50%;width:.6rem;height:.6rem"></span>Beacon</li>
+        <li><span class="sw" style="background:var(--muted);width:.9rem;height:.35rem"></span>Quad</li>
+      </ul>
+      <p class="readout" id="readout">Not connected. Connect the fish to start receiving position data.</p>
+      <div class="replay" id="replay">
+        <label for="scrub">Replay (drag to scrub; Live returns to the end)</label>
+        <div class="slider-row"><input type="range" id="scrub" min="0" max="0" value="0" step="1"><button class="btn quiet" id="btn-live">Live</button></div>
+        <span class="hint mono" id="scrub-t">t = 0.0 s</span>
+      </div>
+    </section>
+    <section class="panel" id="sec-charts" aria-labelledby="h-charts">
+      <div class="panel-head"><h2 id="h-charts">Trends</h2><span class="foot">last 30 s</span></div>
+      <div class="trends">
+        <div class="chart" id="chart-dist">
+          <div class="chart-head"><h3>Distance to target</h3><span class="now" id="chart-dist-now">—</span></div>
+          <svg role="img" tabindex="0" aria-label="Distance to target over the last 30 seconds"></svg>
+          <div class="tip" role="status" aria-live="off"></div>
+          <div><button class="btn quiet small" aria-expanded="false" aria-controls="chart-dist-table">Show table</button></div>
+          <div class="chart-table" id="chart-dist-table" hidden></div>
+        </div>
+        <div class="chart" id="chart-err">
+          <div class="chart-head"><h3>Vision error</h3><span class="now" id="chart-err-now">—</span></div>
+          <svg role="img" tabindex="0" aria-label="Vision pixel error over the last 30 seconds"></svg>
+          <div class="tip" role="status" aria-live="off"></div>
+          <div><button class="btn quiet small" aria-expanded="false" aria-controls="chart-err-table">Show table</button></div>
+          <div class="chart-table" id="chart-err-table" hidden></div>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <!-- ================= VISION ================= -->
   <section class="panel" id="sec-vision" aria-labelledby="h-vision">
-    <div class="panel-head"><h2 id="h-vision">Vision</h2><span class="sub">F5 · YOLO nano + IR blob</span></div>
-    <div class="seg" role="group" aria-label="Detection mode">
-      <button class="btn small" id="vm-beacon" aria-pressed="true">Beacon</button>
-      <button class="btn small" id="vm-swarm" aria-pressed="false">Swarm</button>
-      <span class="hint" id="vm-hint">Beacon: brightest source. Swarm: follow a cluster's centroid.</span>
-    </div>
-    <div class="ir-wrap" id="ir-wrap"><img id="ir" alt="" aria-hidden="true"><div class="nostream" id="ir-nostream">No stream</div></div>
-    <p class="lock" id="lock"><span class="ic" aria-hidden="true">○</span><span id="lock-t">No stream</span></p>
-    <div id="swarm-box" hidden>
-      <h3>Swarms · following <span id="swarm-follow" class="mono">—</span></h3>
-      <div class="btn-row"><button class="btn small" id="sw-prev">◀ Prev swarm</button><button class="btn small" id="sw-next">Next swarm ▶</button><button class="btn small" id="sw-auto">Auto (biggest)</button></div>
+    <div class="panel-head"><h2 id="h-vision">Vision</h2>
+      <div class="seg" role="group" aria-label="Detection mode"><button class="btn" id="vm-beacon" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-beacon"/></svg>Beacon</button><button class="btn" id="vm-swarm" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-swarm"/></svg>Swarm</button></div></div>
+    <p class="hint" id="vm-hint">Beacon: brightest source. Swarm: follow a cluster's centroid.</p>
+    <div class="ir-wrap" id="ir-wrap"><img id="ir" alt="" aria-hidden="true"><div class="nostream" id="ir-nostream">No camera stream. Connect the fish to see the camera.</div><div class="ir-cap" id="ir-cap" hidden><span class="chip cv" id="ir-cap-follow"></span><span class="chip" id="ir-cap-fps"></span></div></div>
+    <p class="lock" id="lock"><svg class="ic" aria-hidden="true"><use id="lock-ic" href="#i-camera"/></svg><span id="lock-t">No stream</span></p>
+    <div class="meter"><span style="grid-column:1/-1"><label for="conf-out">Detection confidence</label> <span class="foot" id="conf-thr-l">threshold 0.60</span></span><div class="track" aria-hidden="true"><div class="fill" id="conf-fill"></div><div class="thr" id="conf-thr"></div></div><output id="conf-out">0.00</output></div>
+    <div class="group" id="swarm-box" hidden>
+      <h3>Swarms <span class="foot">following <span id="swarm-follow" class="mono">—</span></span></h3>
       <ul class="swarms" id="swarm-list" aria-label="Visible swarms"></ul>
-      <p class="hint">Click a swarm on the frame or in the list to follow it. Keys [ and ] cycle.</p>
+      <div class="btn-row"><button class="btn quiet" id="sw-prev">◀ Previous</button><button class="btn quiet" id="sw-next">Next ▶</button><button class="btn quiet" id="sw-auto">Auto</button></div>
+      <p class="hint">Tap a swarm on the frame or in the list to follow it. Keys [ and ] cycle.</p>
     </div>
-    <div class="meter"><label for="conf-out" style="grid-column:1/-1;font-size:.9rem">Detection confidence</label><div class="track" aria-hidden="true"><div class="fill" id="conf-fill"></div></div><output id="conf-out">0.00</output></div>
     <dl class="kv">
-      <dt>Pixel error (ex, ey)</dt><dd id="cv-err">—</dd>
+      <dt>Pixel error (x, y)</dt><dd id="cv-err">—</dd>
       <dt>Normalised error</dt><dd id="cv-norm">—</dd>
       <dt>Fin deflection from vision</dt><dd id="cv-fin">—</dd>
       <dt>Frames · inference</dt><dd id="cv-fps">—</dd>
@@ -444,113 +507,74 @@ kbd{font-family:var(--font-mono);border:1px solid var(--line-strong);border-bott
     <p class="hint" id="cv-alt">No camera stream.</p>
     <p class="hint" id="cv-src"></p>
     <div class="field" id="camsim-box" hidden>
-      <label for="camsim">Simulated fish camera (fake mode)</label>
-      <select id="camsim"><option value="ir" selected>Stream the 3D view from the nose, IR-style</option><option value="visible">Stream the 3D view from the nose, visible light</option><option value="off">Off: dot picture from the ground station</option></select>
-      <span class="hint" id="camsim-hint">The page renders what the fish would see and sends it to the ground station, which runs the detector on it.</span>
+      <span class="lbl" id="camsim-l">Simulated camera</span>
+      <div class="seg" role="group" aria-labelledby="camsim-l" id="camsim-seg"><button class="btn" data-value="ir" aria-pressed="true">IR-style</button><button class="btn" data-value="visible" aria-pressed="false">Visible light</button><button class="btn" data-value="off" aria-pressed="false">Off</button></div>
+      <select id="camsim" class="sr-only" aria-hidden="true" tabindex="-1"><option value="ir" selected>ir</option><option value="visible">visible</option><option value="off">off</option></select>
+      <span class="hint" id="camsim-hint">This page renders what the fish would see and streams it to the ground station, which runs the detector on it. Off shows the station's dot picture.</span>
     </div>
     <details>
-      <summary>Detection tuning</summary>
-      <p class="hint">Changes apply when you release a slider and are sent to the ground station.</p>
-      <div class="field"><label for="tn-rel">Relative threshold <output for="tn-rel" id="tn-rel-o">0.50</output></label><input type="range" id="tn-rel" min="0.1" max="0.95" step="0.05" value="0.5"></div>
-      <div class="field"><label for="tn-con">Min contrast <output for="tn-con" id="tn-con-o">40</output></label><input type="range" id="tn-con" min="5" max="150" step="5" value="40"></div>
-      <div class="field"><label for="tn-area">Min blob area px <output for="tn-area" id="tn-area-o">4</output></label><input type="range" id="tn-area" min="1" max="60" step="1" value="4"></div>
-      <div class="field"><label for="tn-blur">Blur kernel <output for="tn-blur" id="tn-blur-o">9</output></label><input type="range" id="tn-blur" min="1" max="41" step="2" value="9"></div>
-      <div class="field"><label for="tn-clu">Cluster radius px, swarm mode (0 = one swarm) <output for="tn-clu" id="tn-clu-o">200</output></label><input type="range" id="tn-clu" min="0" max="400" step="5" value="200"></div>
-      <div class="field"><label for="tn-sm">Swarm match px per frame, keeps IDs <output for="tn-sm" id="tn-sm-o">60</output></label><input type="range" id="tn-sm" min="10" max="200" step="5" value="60"></div>
-      <div class="field"><label for="tn-quads">Simulated quads, fake mode only <output for="tn-quads" id="tn-quads-o">4</output></label><input type="range" id="tn-quads" min="1" max="12" step="1" value="4"></div>
+      <summary><svg class="ic" aria-hidden="true"><use href="#i-chevron"/></svg>Detection tuning</summary>
+      <p class="hint">Applies when you release a slider or leave a field.</p>
+      <div class="field"><label for="tn-rel">Relative threshold (of background to peak)</label><div class="slider-row"><input type="range" id="tn-rel" min="0.1" max="0.95" step="0.05" value="0.5"><div class="input"><input type="number" id="tn-rel-n" min="0.1" max="0.95" step="0.05" value="0.50" aria-label="Relative threshold"></div></div><div class="ends" aria-hidden="true"><span>0.10</span><span>0.95</span></div></div>
+      <div class="field"><label for="tn-con">Minimum contrast (peak minus background)</label><div class="slider-row"><input type="range" id="tn-con" min="5" max="150" step="5" value="40"><div class="input"><input type="number" id="tn-con-n" min="5" max="150" step="5" value="40" aria-label="Minimum contrast"></div></div><div class="ends" aria-hidden="true"><span>5</span><span>150</span></div></div>
+      <div class="field"><label for="tn-area">Minimum blob area (px)</label><div class="slider-row"><input type="range" id="tn-area" min="1" max="60" step="1" value="4"><div class="input"><input type="number" id="tn-area-n" min="1" max="60" step="1" value="4" aria-label="Minimum blob area, pixels"><span class="unit">px</span></div></div><div class="ends" aria-hidden="true"><span>1</span><span>60</span></div></div>
+      <div class="field"><label for="tn-blur">Blur kernel (odd pixels)</label><div class="slider-row"><input type="range" id="tn-blur" min="1" max="41" step="2" value="9"><div class="input"><input type="number" id="tn-blur-n" min="1" max="41" step="2" value="9" aria-label="Blur kernel, pixels"><span class="unit">px</span></div></div><div class="ends" aria-hidden="true"><span>1</span><span>41</span></div></div>
+      <div class="field"><label for="tn-clu">Cluster radius, swarm mode (0 = one swarm)</label><div class="slider-row"><input type="range" id="tn-clu" min="0" max="400" step="5" value="200"><div class="input"><input type="number" id="tn-clu-n" min="0" max="400" step="5" value="200" aria-label="Cluster radius, pixels"><span class="unit">px</span></div></div><div class="ends" aria-hidden="true"><span>0</span><span>400</span></div></div>
+      <div class="field"><label for="tn-sm">Swarm match per frame (keeps IDs)</label><div class="slider-row"><input type="range" id="tn-sm" min="10" max="200" step="5" value="60"><div class="input"><input type="number" id="tn-sm-n" min="10" max="200" step="5" value="60" aria-label="Swarm match, pixels per frame"><span class="unit">px</span></div></div><div class="ends" aria-hidden="true"><span>10</span><span>200</span></div></div>
+      <div class="field" id="tn-quads-box"><label for="tn-quads">Simulated quads</label><div class="slider-row"><input type="range" id="tn-quads" min="1" max="12" step="1" value="4"><div class="input"><input type="number" id="tn-quads-n" min="1" max="12" step="1" value="4" aria-label="Simulated quads"></div></div><div class="ends" aria-hidden="true"><span>1</span><span>12</span></div></div>
     </details>
   </section>
 
   <!-- ================= FINS ================= -->
   <section class="panel" id="sec-fins" aria-labelledby="h-fins">
-    <div class="panel-head"><h2 id="h-fins">Fins</h2><span class="sub">F6 · ±30° from neutral</span></div>
+    <div class="panel-head"><h2 id="h-fins">Fins</h2><div class="btn-row"><button class="btn quiet" id="btn-neutral" disabled>Fins to neutral</button></div></div>
     <div class="banner" id="ov-banner">Manual override is on. Guidance is paused until you switch it off.</div>
     <div class="fins" id="fins">
-      <div class="fin"><span>Fin 0 · pitch, right</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g0a"></div><div class="cmd" id="g0c"></div></div><output id="f0">+0.0°</output></div>
-      <div class="fin"><span>Fin 1 · yaw, top</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g1a"></div><div class="cmd" id="g1c"></div></div><output id="f1">+0.0°</output></div>
-      <div class="fin"><span>Fin 2 · pitch, left</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g2a"></div><div class="cmd" id="g2c"></div></div><output id="f2">+0.0°</output></div>
-      <div class="fin"><span>Fin 3 · yaw, bottom</span><div class="gauge" aria-hidden="true"><div class="c"></div><div class="act" id="g3a"></div><div class="cmd" id="g3c"></div></div><output id="f3">+0.0°</output></div>
+      <div class="scale" aria-hidden="true"><span></span><span class="s"><span>−30°</span><span>0</span><span>+30°</span></span><span></span></div>
+      <div class="fin"><span id="fl0">Fin 0 · pitch, right</span><div class="gauge" role="meter" aria-labelledby="fl0" aria-valuemin="-30" aria-valuemax="30" aria-valuenow="0" id="g0"><div class="c"></div><div class="act" id="g0a"></div><div class="cmd" id="g0c"></div></div><span class="mono" id="f0" style="text-align:right">+0.0°</span></div>
+      <div class="fin"><span id="fl1">Fin 1 · yaw, top</span><div class="gauge" role="meter" aria-labelledby="fl1" aria-valuemin="-30" aria-valuemax="30" aria-valuenow="0" id="g1"><div class="c"></div><div class="act" id="g1a"></div><div class="cmd" id="g1c"></div></div><span class="mono" id="f1" style="text-align:right">+0.0°</span></div>
+      <div class="fin"><span id="fl2">Fin 2 · pitch, left</span><div class="gauge" role="meter" aria-labelledby="fl2" aria-valuemin="-30" aria-valuemax="30" aria-valuenow="0" id="g2"><div class="c"></div><div class="act" id="g2a"></div><div class="cmd" id="g2c"></div></div><span class="mono" id="f2" style="text-align:right">+0.0°</span></div>
+      <div class="fin"><span id="fl3">Fin 3 · yaw, bottom</span><div class="gauge" role="meter" aria-labelledby="fl3" aria-valuemin="-30" aria-valuemax="30" aria-valuenow="0" id="g3"><div class="c"></div><div class="act" id="g3a"></div><div class="cmd" id="g3c"></div></div><span class="mono" id="f3" style="text-align:right">+0.0°</span></div>
     </div>
-    <p class="hint">Bar = actual (slewed) deflection. Dark tick = commanded.</p>
+    <p class="foot">Bar: actual deflection. Tick: commanded.</p>
     <dl class="kv">
-      <dt>Yaw cmd → actual</dt><dd id="fin-yaw">—</dd>
-      <dt>Pitch cmd → actual</dt><dd id="fin-pitch">—</dd>
+      <dt>Yaw, commanded → actual</dt><dd id="fin-yaw">—</dd>
+      <dt>Pitch, commanded → actual</dt><dd id="fin-pitch">—</dd>
       <dt>Link round-trip</dt><dd id="fin-rtt">—</dd>
       <dt>Packets sent / acked</dt><dd id="fin-pk">—</dd>
       <dt>Battery</dt><dd id="fin-batt">—</dd>
     </dl>
-    <div class="btn-row"><button class="btn" id="btn-neutral" disabled>Fins to neutral</button></div>
-    <div class="override-box">
-      <label class="check"><input type="checkbox" id="ov-on" disabled> Manual override</label>
-      <div class="field"><label for="ov-yaw">Yaw deflection <output for="ov-yaw" id="ov-yaw-o">0°</output></label><input type="range" id="ov-yaw" min="-30" max="30" step="1" value="0" disabled></div>
-      <div class="field"><label for="ov-pitch">Pitch deflection <output for="ov-pitch" id="ov-pitch-o">0°</output></label><input type="range" id="ov-pitch" min="-30" max="30" step="1" value="0" disabled></div>
+    <div class="group">
+      <label class="check"><input type="checkbox" id="ov-on" disabled> Manual override <span class="foot">pauses guidance</span></label>
+      <div class="field"><label for="ov-yaw">Yaw deflection <output for="ov-yaw" id="ov-yaw-o" class="mono">0°</output></label><input type="range" id="ov-yaw" min="-30" max="30" step="1" value="0" disabled><div class="ends" aria-hidden="true"><span>−30°</span><span>0</span><span>+30°</span></div></div>
+      <div class="field"><label for="ov-pitch">Pitch deflection <output for="ov-pitch" id="ov-pitch-o" class="mono">0°</output></label><input type="range" id="ov-pitch" min="-30" max="30" step="1" value="0" disabled><div class="ends" aria-hidden="true"><span>−30°</span><span>0</span><span>+30°</span></div></div>
     </div>
     <details>
-      <summary>PID tuning</summary>
-      <div class="field"><label for="pid-kp">Kp <output for="pid-kp" id="pid-kp-o">0.60</output></label><input type="range" id="pid-kp" min="0" max="1.5" step="0.05" value="0.6"></div>
-      <div class="field"><label for="pid-ki">Ki <output for="pid-ki" id="pid-ki-o">0.05</output></label><input type="range" id="pid-ki" min="0" max="0.5" step="0.01" value="0.05"></div>
-      <div class="field"><label for="pid-db">Deadband px <output for="pid-db" id="pid-db-o">6</output></label><input type="range" id="pid-db" min="0" max="40" step="1" value="6"></div>
-      <div class="field"><label for="pid-ms">Max step °/frame <output for="pid-ms" id="pid-ms-o">8.0</output></label><input type="range" id="pid-ms" min="1" max="20" step="0.5" value="8"></div>
+      <summary><svg class="ic" aria-hidden="true"><use href="#i-chevron"/></svg>PID tuning</summary>
+      <div class="field"><label for="pid-kp">Proportional gain (Kp)</label><div class="slider-row"><input type="range" id="pid-kp" min="0" max="1.5" step="0.05" value="0.6"><div class="input"><input type="number" id="pid-kp-n" min="0" max="1.5" step="0.05" value="0.60" aria-label="Proportional gain"></div></div><div class="ends" aria-hidden="true"><span>0</span><span>1.5</span></div></div>
+      <div class="field"><label for="pid-ki">Integral gain (Ki)</label><div class="slider-row"><input type="range" id="pid-ki" min="0" max="0.5" step="0.01" value="0.05"><div class="input"><input type="number" id="pid-ki-n" min="0" max="0.5" step="0.01" value="0.05" aria-label="Integral gain"></div></div><div class="ends" aria-hidden="true"><span>0</span><span>0.5</span></div></div>
+      <div class="field"><label for="pid-db">Deadband</label><div class="slider-row"><input type="range" id="pid-db" min="0" max="40" step="1" value="6"><div class="input"><input type="number" id="pid-db-n" min="0" max="40" step="1" value="6" aria-label="Deadband, pixels"><span class="unit">px</span></div></div><div class="ends" aria-hidden="true"><span>0</span><span>40</span></div></div>
+      <div class="field"><label for="pid-ms">Maximum step per frame</label><div class="slider-row"><input type="range" id="pid-ms" min="1" max="20" step="0.5" value="8"><div class="input"><input type="number" id="pid-ms-n" min="1" max="20" step="0.5" value="8.0" aria-label="Maximum step, degrees per frame"><span class="unit">°</span></div></div><div class="ends" aria-hidden="true"><span>1</span><span>20</span></div></div>
     </details>
   </section>
 
   <!-- ================= LOG ================= -->
   <section class="panel" id="sec-log" aria-labelledby="h-log">
-    <div class="panel-head"><h2 id="h-log">Event log</h2><span class="sub">F7 · newest at the bottom</span></div>
-    <div class="log-tools">
-      <label class="check"><input type="checkbox" id="log-auto" checked> Auto-scroll</label>
-      <button class="btn small" id="btn-copylog">Copy log</button>
-      <span class="err" id="cmd-err" role="status"></span>
-      <button class="btn small" id="btn-clearlog">Clear</button>
-      <a class="btn small" href="/log.json" download="fish-flight.json">Download JSON</a>
-      <a class="btn small" href="/log.csv" download="fish-flight.csv">Download CSV</a>
-    </div>
+    <div class="panel-head"><h2 id="h-log">Log</h2>
+      <div class="log-tools">
+        <label class="check"><input type="checkbox" id="log-auto" checked> Follow newest</label>
+        <button class="btn quiet small" id="btn-copylog">Copy</button>
+        <button class="btn quiet small" id="btn-clearlog">Clear</button>
+        <a class="btn quiet small" href="/log.json" download="maelstrom-flight.json">Download JSON</a>
+        <a class="btn quiet small" href="/log.csv" download="maelstrom-flight.csv">Download CSV</a>
+        <span class="err" id="cmd-err" role="status"></span>
+      </div></div>
     <ol class="log" id="log" role="log" aria-live="polite" aria-relevant="additions"></ol>
   </section>
 </main>
 
 <div id="live-polite" class="sr-only" aria-live="polite"></div>
 <div id="live-assertive" class="sr-only" role="alert"></div>
-
-<!-- ================= SETTINGS ================= -->
-<dialog id="dlg-settings" aria-labelledby="h-settings">
-  <form method="dialog">
-    <div class="dlg-head"><h2 id="h-settings">Settings</h2><button class="btn ghost" value="close" type="submit">Close</button></div>
-    <div class="field"><label for="st-theme">Theme</label><select id="st-theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
-    <label class="check"><input type="checkbox" id="st-contrast"> High contrast borders and labels</label>
-    <div class="field"><label for="st-size">Text size</label><select id="st-size"><option value="100">100 %</option><option value="125">125 %</option><option value="150">150 %</option></select></div>
-    <div class="field"><label for="st-motion">Motion</label><select id="st-motion"><option value="system">Follow system</option><option value="reduce">Reduce motion</option></select></div>
-    <label class="check"><input type="checkbox" id="st-keys" checked> Single-key shortcuts (X, S, A, L, N, P, 1–3)</label>
-    <div class="field"><label for="st-count">Launch countdown</label><select id="st-count"><option value="3">3 s</option><option value="5">5 s</option><option value="10">10 s</option></select></div>
-    <div class="field"><label for="st-units">Units</label><select id="st-units"><option value="m">metres</option><option value="ft">feet</option></select></div>
-    <div class="field"><label for="st-verb">Screen-reader announcements</label><select id="st-verb"><option value="all">Every log event</option><option value="phase">Phase changes and alerts only</option></select></div>
-    <p class="hint">Settings are stored in this browser only.</p>
-  </form>
-</dialog>
-
-<!-- ================= SHORTCUTS ================= -->
-<dialog id="dlg-keys" aria-labelledby="h-keys">
-  <form method="dialog">
-    <div class="dlg-head"><h2 id="h-keys">Keyboard shortcuts</h2><button class="btn ghost" value="close" type="submit">Close</button></div>
-    <table class="keys">
-      <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
-      <tbody>
-        <tr><td><kbd>X</kbd></td><td>Abort (any phase after Ready, single press)</td></tr>
-        <tr><td><kbd>A</kbd></td><td>Arm, then confirm arm</td></tr>
-        <tr><td><kbd>L</kbd></td><td>Start the launch countdown (only when armed)</td></tr>
-        <tr><td><kbd>N</kbd></td><td>Fins to neutral</td></tr>
-        <tr><td><kbd>S</kbd></td><td>Stop mission, back to Ready (single press)</td></tr>
-        <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next swarm (swarm mode)</td></tr>
-        <tr><td><kbd>P</kbd></td><td>Pause or resume the 3D view</td></tr>
-        <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Camera preset Follow / Side / Top</td></tr>
-        <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Orbit the 3D view when it has focus; <kbd>+</kbd> <kbd>−</kbd> zoom, <kbd>Home</kbd> resets</td></tr>
-        <tr><td><kbd>?</kbd></td><td>This dialog</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Close a dialog. Never aborts.</td></tr>
-      </tbody>
-    </table>
-    <p class="hint">Single-key shortcuts can be switched off in Settings; every action is also a button.</p>
-  </form>
-</dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -560,63 +584,84 @@ const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 const fmt = (v,d=1) => (v==null||isNaN(v)) ? '—' : v.toFixed(d);
 const sgn = (v,d=1) => (v>=0?'+':'') + v.toFixed(d);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function icon(sym){ const s = document.createElementNS(SVG_NS,'svg'); s.setAttribute('class','ic'); s.setAttribute('aria-hidden','true'); const u = document.createElementNS(SVG_NS,'use'); u.setAttribute('href', sym); s.appendChild(u); return s; }
+function setMark(el, sym){ if (!el || el.dataset.sym === sym) return; el.dataset.sym = sym; el.replaceChildren(icon(sym)); }
+function wallClock(){ const d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 
 /* ================= settings ================= */
-const settings = { theme:'system', contrast:false, size:'100', motion:'system', keys:true, count:'3', units:'m', verb:'all' };
-try { Object.assign(settings, JSON.parse(localStorage.getItem('fishgcs.settings')||'{}')); } catch(e){}
+const settings = { theme:'system', contrast:'system', size:'100', motion:'system', keys:true, count:'3', units:'game', verb:'all' };
+try { const saved = JSON.parse(localStorage.getItem('fishgcs.settings')||'{}'); if (saved.contrast === true) saved.contrast = 'on'; if (saved.contrast === false) saved.contrast = 'system'; Object.assign(settings, saved); } catch(e){}
 function saveSettings(){ try { localStorage.setItem('fishgcs.settings', JSON.stringify(settings)); } catch(e){} }
 const mqMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function reduceMotion(){ return settings.motion==='reduce' || mqMotion.matches; }
 function applySettings(){
   const root = document.documentElement;
   if (settings.theme==='system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', settings.theme);
-  if (settings.contrast) root.setAttribute('data-contrast','high'); else root.removeAttribute('data-contrast');
+  if (settings.contrast==='on') root.setAttribute('data-contrast','high'); else if (settings.contrast==='off') root.setAttribute('data-contrast','normal'); else root.removeAttribute('data-contrast');
   root.style.fontSize = settings.size + '%';
   $('log').setAttribute('aria-live', settings.verb==='all' ? 'polite' : 'off');
-  $('st-theme').value = settings.theme; $('st-contrast').checked = settings.contrast; $('st-size').value = settings.size;
-  $('st-motion').value = settings.motion; $('st-keys').checked = settings.keys; $('st-count').value = settings.count;
-  $('st-units').value = settings.units; $('st-verb').value = settings.verb;
+  document.querySelectorAll('.seg[data-setting]').forEach(seg => { const k = seg.dataset.setting; seg.querySelectorAll('.btn').forEach(b => b.setAttribute('aria-pressed', String(String(settings[k]) === b.dataset.value))); });
+  $('st-keys').checked = settings.keys;
+  applyUnitLabels();
   if (typeof applyThemeTo3D === 'function') applyThemeTo3D();
 }
-[['st-theme','theme'],['st-size','size'],['st-motion','motion'],['st-units','units'],['st-verb','verb'],['st-count','count']].forEach(([id,k]) => {
-  $(id).addEventListener('change', e => { settings[k] = e.target.value; saveSettings(); applySettings(); });
-});
-[['st-contrast','contrast'],['st-keys','keys']].forEach(([id,k]) => {
-  $(id).addEventListener('change', e => { settings[k] = e.target.checked; saveSettings(); applySettings(); });
-});
-$('btn-settings').addEventListener('click', () => $('dlg-settings').showModal());
-$('btn-keys').addEventListener('click', () => $('dlg-keys').showModal());
+document.querySelectorAll('.seg[data-setting] .btn').forEach(b => b.addEventListener('click', () => { settings[b.parentElement.dataset.setting] = b.dataset.value; saveSettings(); applySettings(); }));
+$('st-keys').addEventListener('change', e => { settings.keys = e.target.checked; saveSettings(); applySettings(); });
+/* popovers: non-modal, so Abort and the shortcuts keep working while one is open */
+const POPS = {'dlg-settings':'btn-settings', 'dlg-keys':'btn-keys'};
+function togglePop(id, force){
+  const open = force != null ? force : $(id).hidden;
+  Object.keys(POPS).forEach(p => { $(p).hidden = true; $(POPS[p]).setAttribute('aria-expanded','false'); });
+  if (open) { $(id).hidden = false; $(POPS[id]).setAttribute('aria-expanded','true'); const f = $(id).querySelector('button, input'); if (f) f.focus(); }
+  else $(POPS[id]).focus();
+}
+function anyPopOpen(){ return Object.keys(POPS).some(p => !$(p).hidden); }
+$('btn-settings').addEventListener('click', () => togglePop('dlg-settings'));
+$('btn-keys').addEventListener('click', () => togglePop('dlg-keys'));
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => togglePop(b.dataset.close, false)));
+document.addEventListener('pointerdown', e => { if (e.target.closest('.pop') || e.target.closest('#btn-settings') || e.target.closest('#btn-keys')) return; Object.keys(POPS).forEach(p => { if (!$(p).hidden) { $(p).hidden = true; $(POPS[p]).setAttribute('aria-expanded','false'); } }); });
 
-function unit(m){ return settings.units==='ft' ? (m*3.28084).toFixed(1)+' ft' : m.toFixed(2)+' m'; }
+/* Display units. 'game' is a deliberate lie for the demo: distances show 100x their real value and the speed
+   field is labelled m/s although it is entered in cm/s. Nothing sent to the station changes. */
+const game = () => settings.units === 'game';
+function unit(m){ return settings.units==='ft' ? (m*3.28084).toFixed(1)+' ft' : game() ? (m*100).toFixed(0)+' m' : m.toFixed(2)+' m'; }
+function dm(m, d){ return game() ? (m*100).toFixed(Math.max(0, d-2)) + ' m' : m.toFixed(d) + ' m'; }
+function speedUnit(){ return game() ? 'm/s' : 'cm/s'; }
+function applyUnitLabels(){ $('u-speed').textContent = speedUnit(); document.querySelectorAll('.u-cm').forEach(u => { u.textContent = game() ? 'm' : 'cm'; }); $('units-hint').hidden = !game();
+  if (typeof S !== 'undefined' && S.mission && S.mission.set) { $('init-dist').textContent = dm(PATH_LEN,2); $('init-ho').textContent = Math.round(S.threshold*100) + ' % · ' + dm(PATH_LEN*S.threshold,2) + ' along path'; } }
 
 /* ================= visual cue (replaces sound) ================= */
 let cueTimer = null;
 function showCue(icon, text, cls, ms, count){
   const c = $('cue'); c.hidden = false; c.className = 'cue' + (cls ? ' ' + cls : '');
-  $('cue-ic').textContent = icon || ''; $('cue-text').textContent = text; $('cue-count').textContent = count!=null ? String(count) : '';
+  $('cue-ic').setAttribute('href', icon || '#i-play'); $('cue-text').textContent = text; $('cue-count').textContent = count!=null ? String(count) : '';
   if (cueTimer) clearTimeout(cueTimer);
   if (ms) cueTimer = setTimeout(hideCue, ms);
 }
 function hideCue(){ $('cue').hidden = true; $('cue-cancel').hidden = true; $('cue-count').textContent=''; }
+const SAFETY = {abort:'Abort', stop:'Stop', fins_neutral:'Fins to neutral', override:'Manual override', launch:'Launch', arm:'Arm', disarm:'Disarm', force_handover:'Force hand-over', return_to_imu:'Return to IMU'};
+function cueErr(name, reason){ const label = SAFETY[name] || name; showCue('#i-warn', label + ' was not accepted: ' + reason, 'crit', 8000); log(label + ' not accepted: ' + reason, 'crit'); }
 
 /* ================= phases ================= */
 const PHASES = [
-  {key:'disconnected', label:'Disconnected', icon:'○', who:'fins at neutral'},
-  {key:'ready',        label:'Ready',        icon:'◐', who:'link up, not armed'},
-  {key:'armed',        label:'Armed',        icon:'●', who:'waiting for launch'},
-  {key:'imu_glide',    label:'IMU glide',    icon:'▲', who:'ESP32 steers from init + IMU', cls:'imu'},
-  {key:'handover',     label:'Hand-over',    icon:'⇄', who:'blend, about 1 s', cls:'cv'},
-  {key:'cv_homing',    label:'Vision homing',icon:'◎', who:'laptop steers from YOLO + IR', cls:'cv'},
-  {key:'arrived',      label:'Arrived',      icon:'✔', who:'fins neutral', cls:'good'},
-  {key:'aborted',      label:'Aborted · safe', icon:'■', who:'fins neutral', cls:'crit'},
+  {key:'disconnected', label:'Disconnected', icon:'#i-plug-off', who:'fins at neutral'},
+  {key:'ready',        label:'Ready',        icon:'#i-check-circle', who:'link up, not armed'},
+  {key:'armed',        label:'Armed',        icon:'#i-armed', who:'waiting for launch', cls:'armed'},
+  {key:'imu_glide',    label:'Initial phase',    icon:'#i-glide', who:'dead reckoning', cls:'imu'},
+  {key:'handover',     label:'Hand-over',    icon:'#i-handover', who:'1 s blend', cls:'cv'},
+  {key:'cv_homing',    label:'Vision homing',icon:'#i-target', who:'camera steers', cls:'cv'},
+  {key:'arrived',      label:'Arrived',      icon:'#i-flag', who:'fins neutral', cls:'good'},
+  {key:'aborted',      label:'Aborted · safe', icon:'#i-stop', who:'fault, fins neutral', cls:'crit'},
 ];
 const phaseIdx = (k) => PHASES.findIndex(p => p.key===k);
 const FLYING = new Set(['imu_glide','handover','cv_homing']);
 (function buildStepper(){
   const ol = $('phases');
   PHASES.forEach(p => {
-    const li = document.createElement('li'); li.id = 'ph-' + p.key; if (p.cls) li.classList.add(p.cls);
-    const ic = document.createElement('span'); ic.className='ic'; ic.setAttribute('aria-hidden','true'); ic.textContent = p.icon;
+    if (p.key === 'disconnected') return;
+    const li = document.createElement('li'); li.id = 'ph-' + p.key; if (p.cls) li.classList.add(p.cls); if (p.key === 'aborted') li.hidden = true;
+    const ic = icon(p.icon); li.dataset.ic = p.icon;
     const lb = document.createElement('span'); lb.textContent = p.label;
     const who = document.createElement('span'); who.className='who'; who.textContent = p.who;
     li.append(ic, lb, who); ol.appendChild(li);
@@ -642,7 +687,7 @@ const S = {
   hoOk:[false,false,false,false], preflight:{}, override:{on:false,yaw:0,pitch:0}, armPending:null, launchPending:null, calibrating:null, selftestRunning:false, mission:{set:false},
   cvW:640, cvH:480, cvSource:'ir', lastControls:0,
   summary:{handoverT:null, maxConf:0, maxDrift:0, reason:''},
-  vmode:'beacon', swarms:[], swarmId:null, swarmN:0, nSources:0, simQuads:[], lastSwarmKey:'', simFish:null, camSource:null,
+  vmode:'beacon', swarms:[], swarmId:null, swarmN:0, nSources:0, simQuads:[], lastSwarmKey:'', simFish:null, camSource:null, lastTel:0, outage:false,
 };
 
 /* ================= log + live regions ================= */
@@ -651,9 +696,9 @@ function missionT(){ return S.tel && S.tel.t_mission != null ? S.tel.t_mission :
 function log(msg, level, tMission){
   level = level || 'info'; if (tMission === undefined) tMission = missionT();
   const li = document.createElement('li'); li.className = level;
-  const ts = document.createElement('span'); ts.className='ts'; ts.textContent = tMission == null ? '—' : clockStr(tMission);
+  const ts = document.createElement('span'); ts.className='ts'; ts.textContent = tMission == null ? wallClock() : clockStr(tMission);
   const lv = document.createElement('span'); lv.className='lv'; lv.setAttribute('aria-hidden','true');
-  lv.textContent = {info:'·', good:'✔', warn:'!', crit:'✖'}[level] || '·';
+  if (level==='good') lv.appendChild(icon('#i-check')); else if (level==='crit') lv.appendChild(icon('#i-cross')); else if (level==='warn') lv.appendChild(icon('#i-warn')); else lv.textContent = '·';
   const tx = document.createElement('span'); tx.textContent = (level==='warn'?'Warning: ':level==='crit'?'Critical: ':'') + msg;
   li.append(ts, lv, tx);
   const ol = $('log'); ol.appendChild(li);
@@ -667,7 +712,9 @@ function onPhase(key, prev){
   const p = PHASES[phaseIdx(key)]; if (!p) return;
   S.phase = key;
   if (settings.verb==='phase') announce('Phase ' + p.label);
-  if (key !== 'ready' || prev !== 'disconnected') showCue(p.icon, 'Phase: ' + p.label, p.cls || '', key==='aborted' ? 8000 : 4000);
+  if (key === 'aborted') showCue('#i-stop', 'Aborted: ' + (S.summary.reason || 'fault') + '. Fins neutral.', 'crit', 10000);
+  else if (key === 'ready' && FLYING.has(prev) && /ABORT/.test(S.summary.reason || '')) showCue('#i-stop', 'Aborted by operator. Fins neutral, back to Ready.', 'crit', 8000);
+  else if (!countdown && !S.outage) hideCue();
   if (key === 'imu_glide' && !FLYING.has(prev)) { S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); S.summary = {handoverT:null, maxConf:0, maxDrift:0, reason:''}; hideSummary(); }
   if (key === 'handover') S.summary.handoverT = missionT();
   if (key === 'arrived' || key === 'aborted' || (key === 'ready' && FLYING.has(prev))) setTimeout(showSummary, 150); else hideSummary();
@@ -682,10 +729,10 @@ async function cmd(obj, errEl){
   try {
     const r = await fetch('/cmd', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(obj)});
     const j = await r.json();
-    if (!j.ok) { const el = errEl || $('cmd-err'); el.textContent = j.error || 'Command failed.'; el.className = 'err'; log((obj.cmd || 'command') + ': ' + (j.error || 'failed'), 'warn'); }
+    if (!j.ok) { const err = j.error || 'Command failed.'; if (SAFETY[obj.cmd]) cueErr(obj.cmd, err); else log((obj.cmd || 'command') + ': ' + err, 'warn'); const el = errEl || $('cmd-err'); el.textContent = err; el.className = 'err'; }
     return j;
   } catch (e) {
-    const el = errEl || $('cmd-err'); el.textContent = 'Ground station not reachable.'; el.className = 'err'; return {ok:false, error:String(e)};
+    if (SAFETY[obj.cmd]) cueErr(obj.cmd, 'the ground station is not reachable'); const el = errEl || $('cmd-err'); el.textContent = 'Ground station not reachable.'; el.className = 'err'; return {ok:false, error:String(e)};
   }
 }
 
@@ -711,24 +758,33 @@ function updateControls(){
   const lockMission = fly || ph==='armed';
   $('btn-apply-mission').disabled = lockMission;
   ['m-speed','m-x','m-y','m-z','init-file','btn-sample-init'].forEach(id => { $(id).disabled = lockMission; });
-  const ah = $('apply-hint'); ah.hidden = !lockMission; ah.textContent = fly ? 'Stop the mission to change parameters.' : 'Disarm to change parameters.';
-  const pfSet = (id, ok, val) => { const li = $(id); const adv = li.classList.contains('adv'); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); li.querySelector('.mark').textContent = ok?'✔':(adv?'–':'✘'); li.querySelector('.val').textContent = val||''; li.setAttribute('aria-label', (ok?'Done: ':(adv?'Skipped: ':'Not done: ')) + li.children[1].textContent + (val?', '+val:'')); };
+  const ah = $('apply-hint'); ah.hidden = !lockMission; ah.textContent = fly ? 'Stop the mission to edit' : 'Disarm to edit';
+  ['ip-fin','ip-cam'].forEach(id => { $(id).disabled = S.connected; });
+  $('connect-hint').textContent = !S.wsOk ? 'Waiting for the ground station. Start it with python -m gcs; this page connects by itself.' : '';
+  const stage = ph==='disconnected' ? 'disconnected' : ph==='ready' ? 'ready' : ph==='armed' ? 'armed' : fly ? 'flying' : 'ended';
+  if (document.body.dataset.stage !== stage) document.body.dataset.stage = stage;
+  const stepDone = (id, done, n) => { const el = $(id); const was = el.dataset.done === '1'; if (was === !!done && el.childNodes.length) return; el.dataset.done = done ? '1' : '0'; el.classList.toggle('done', !!done); el.replaceChildren(done ? icon('#i-check') : document.createTextNode(n)); };
+  stepDone('step-1', S.connected, '1'); stepDone('step-2', !!S.mission.set, '2'); stepDone('step-3', ph!=='disconnected' && ph!=='ready', '3');
+  const pfSet = (id, ok, val) => { const li = $(id); const adv = li.classList.contains('adv'); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); setMark(li.querySelector('.mark'), ok?'#i-check':(adv?'#i-dash':'#i-cross')); li.querySelector('.val').textContent = val||''; li.setAttribute('aria-label', (ok?'Done: ':(adv?'Skipped: ':'Not done: ')) + li.children[1].textContent + (val?', '+val:'')); };
   pfSet('pf-link', pf.link, S.connected && S.rtt != null ? 'ACK ' + fmt(S.rtt,0) + ' ms' : '');
-  pfSet('pf-init', pf.mission, S.mission.set ? fmt(S.mission.path_len,1) + ' m at ' + Math.round(S.mission.speed*100) + ' cm/s' : '');
+  pfSet('pf-init', pf.mission, S.mission.set ? dm(S.mission.path_len,1) + ' at ' + Math.round(S.mission.speed*100) + ' ' + speedUnit() : '');
   pfSet('pf-cal', pf.calibrated, S.calibrating != null ? 'hold still ' + fmt(S.calibrating,0) + ' s' : (pf.calibrated ? 'done' : ''));
   pfSet('pf-fins', pf.selftest, S.selftestRunning ? 'running' : (pf.selftest ? '4 / 4 moved' : ''));
   pfSet('pf-batt', pf.batt, S.batt != null ? fmt(S.batt,2) + ' V' : (S.connected ? 'no reading' : ''));
   const cur = phaseIdx(ph);
   PHASES.forEach((p,i) => {
-    const li = $('ph-'+p.key);
+    const li = $('ph-'+p.key); if (!li) return;
     if (i===cur) li.setAttribute('aria-current','step'); else li.removeAttribute('aria-current');
     const done = (i<cur && !(ph==='aborted' && i>=3));
     li.classList.toggle('done', done);
-    li.querySelector('.ic').textContent = done ? '✔' : p.icon;
+    const sym = done ? '#i-check' : p.icon; if (li.dataset.ic !== sym) { li.dataset.ic = sym; li.querySelector('.ic').replaceWith(icon(sym)); }
+    if (p.key === 'aborted') li.hidden = ph !== 'aborted';
   });
   const p = PHASES[cur];
   const pn = $('phase-now'); pn.className = 'phase-now' + (p.cls?' '+p.cls:'');
-  $('phase-icon').textContent = p.icon; $('phase-label').textContent = p.label;
+  $('phase-icon').setAttribute('href', p.icon); $('phase-label').textContent = p.label;
+  const primary = ph==='disconnected' ? 'btn-connect' : ph==='ready' ? (S.mission.set ? 'btn-arm' : 'btn-apply-mission') : ph==='armed' ? 'btn-launch' : 'btn-stop';
+  ['btn-connect','btn-apply-mission','btn-arm','btn-launch','btn-stop'].forEach(id => $(id).classList.toggle('primary', id === primary && !$(id).disabled));
   $('cal-msg').textContent = S.calibrating != null ? 'Calibrating, hold still: ' + Math.ceil(S.calibrating) + ' s left.' : (S.calibrated ? 'Calibrated. You can re-run it any time before arming.' : (ph==='ready' ? 'Optional, any number of times before arming. Hold the fish still for 3 s during calibration.' : 'Available again once the mission is stopped.'));
   $('cal-msg').className = S.calibrated && S.calibrating == null ? 'okmsg' : 'hint';
 }
@@ -754,10 +810,10 @@ $('btn-disconnect').addEventListener('click', () => cmd({cmd:'disconnect'}, $('i
 async function applyMission(source){
   const spCm = parseFloat($('m-speed').value), sp = spCm / 100, x = parseFloat($('m-x').value) / 100, y = parseFloat($('m-y').value) / 100, z = parseFloat($('m-z').value) / 100;   // page shows cm and cm/s, the station works in m and m/s
   const msg = $('init-msg');
-  if (!(sp > 0)) { msg.textContent = 'Launch speed must be a number above 0 cm/s.'; msg.className = 'err'; $('m-speed').focus(); return false; }
+  if (!(sp > 0)) { msg.textContent = 'Launch speed must be a number above 0 ' + speedUnit() + '.'; msg.className = 'err'; $('m-speed').focus(); return false; }
   if ([x,y,z].some(v => isNaN(v)) || Math.hypot(x,y,z) < 0.5) { msg.textContent = 'Target must be at least 50 cm from the launch point.'; msg.className = 'err'; $('m-x').focus(); return false; }
   const r = await cmd({cmd:'mission', speed:sp, target:[x,y,z], source: source || 'typed in'}, msg);
-  if (r.ok) { msg.textContent = 'Mission applied: target ' + r.path_len.toFixed(2) + ' m away at ' + Math.round(spCm) + ' cm/s, expected ' + r.eta_s.toFixed(1) + ' s.'; msg.className = 'okmsg'; S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); }
+  if (r.ok) { msg.textContent = 'Mission applied: target ' + dm(r.path_len,2) + ' away at ' + Math.round(spCm) + ' ' + speedUnit() + ', expected ' + r.eta_s.toFixed(1) + ' s.'; msg.className = 'okmsg'; S.hist = []; S.scrub = null; resetTrails(); $('replay').classList.remove('on'); }
   return r.ok;
 }
 $('btn-apply-mission').addEventListener('click', () => applyMission(''));
@@ -791,14 +847,14 @@ let countdown = null;
 function startCountdown(){
   if (S.phase!=='armed' || countdown) return;
   let n = parseInt(settings.count, 10) || 3;
-  showCue('▶', 'Launching in', 'warn', 0, n); $('cue-cancel').hidden = false; $('btn-launch').disabled = true;
+  showCue('#i-play', 'Launching in', 'warn', 0, n); $('cue-cancel').hidden = false; $('btn-launch').disabled = true;
   log('Launch countdown started: ' + n + ' s. Press Cancel launch or Abort to stop it.', 'warn');
   countdown = setInterval(async () => {
     if (S.phase!=='armed') { cancelCountdown('phase changed'); return; }
     n--; if (n > 0) { $('cue-count').textContent = String(n); return; }
     clearInterval(countdown); countdown = null; $('cue-cancel').hidden = true; hideCue();
     const r = await cmd({cmd:'launch'}, $('arm-msg'));
-    if (r.ok && r.pending) showCue('▲', 'Waiting for the accelerometer to see the launch', 'imu', 10000);
+    if (r.ok && r.pending) showCue('#i-glide', 'Waiting for the accelerometer to see the launch', 'imu', 10000);
     updateControls();
   }, 1000);
 }
@@ -840,12 +896,12 @@ let ovTimer = null;
 function sendOverride(){ if (ovTimer) return; ovTimer = setTimeout(() => { ovTimer = null; cmd({cmd:'override', on:$('ov-on').checked, yaw:+$('ov-yaw').value, pitch:+$('ov-pitch').value}); }, 100); }
 $('ov-yaw').addEventListener('input', e => { $('ov-yaw-o').textContent = sgn(+e.target.value,0)+'°'; sendOverride(); });
 $('ov-pitch').addEventListener('input', e => { $('ov-pitch-o').textContent = sgn(+e.target.value,0)+'°'; sendOverride(); });
-function setThresholdUI(v){ v = clamp(Math.round(v),60,95); S.threshold = v/100; $('thr').value = v; $('thr-n').value = v; $('prog-thr').style.left = v+'%'; placeHandoverRing(); if (S.mission.set) $('init-ho').textContent = v + ' % · ' + (PATH_LEN*S.threshold).toFixed(2) + ' m along path'; }
+function setThresholdUI(v){ v = clamp(Math.round(v),60,95); S.threshold = v/100; $('thr').value = v; $('thr-n').value = v; $('prog-thr').style.left = v+'%'; $('prog-thr-l').style.left = v+'%'; $('prog-thr-l').textContent = 'hand-over ' + v + ' %'; placeHandoverRing(); if (S.mission.set) $('init-ho').textContent = v + ' % · ' + (PATH_LEN*S.threshold).toFixed(2) + ' m along path'; }
 $('thr').addEventListener('input', e => { $('thr-n').value = e.target.value; });
 $('thr').addEventListener('change', e => { setThresholdUI(+e.target.value); cmd({cmd:'handover_threshold', value:+$('thr').value}, $('thr-hint')); });
 $('thr-n').addEventListener('change', e => { setThresholdUI(+e.target.value); cmd({cmd:'handover_threshold', value:+$('thr').value}, $('thr-hint')); });
 const TUNE = {'tn-rel':['rel_threshold',2],'tn-con':['min_contrast',0],'tn-area':['min_area',0],'tn-blur':['blur',0],'tn-clu':['cluster_radius',0],'tn-sm':['swarm_match',0],'tn-quads':['sim_quads',0],'pid-kp':['kp',2],'pid-ki':['ki',2],'pid-db':['deadband_px',0],'pid-ms':['max_step',1]};
-Object.entries(TUNE).forEach(([id,[key,d]]) => { $(id).addEventListener('input', e => { $(id+'-o').textContent = (+e.target.value).toFixed(d); }); $(id).addEventListener('change', e => cmd({cmd:'tune', key, value:+e.target.value})); });
+Object.entries(TUNE).forEach(([id,[key,d]]) => { const n = $(id+'-n'); $(id).addEventListener('input', e => { n.value = (+e.target.value).toFixed(d); }); $(id).addEventListener('change', e => cmd({cmd:'tune', key, value:+e.target.value})); n.addEventListener('change', e => { const v = clamp(+e.target.value, +$(id).min, +$(id).max); $(id).value = v; n.value = (+v).toFixed(d); cmd({cmd:'tune', key, value:+v}); }); });
 $('btn-clearlog').addEventListener('click', () => { $('log').replaceChildren(); });
 $('btn-copylog').addEventListener('click', () => {
   const text = Array.from($('log').children).map(li => li.children[0].textContent + '  ' + li.children[2].textContent).join('\n');
@@ -858,18 +914,18 @@ let ws = null, wsRetry = null;
 function connectWs(){
   const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
   try { ws = new WebSocket(url); } catch (e) { scheduleWs(); return; }
-  ws.onopen = () => { S.wsOk = true; pill('pill-srv', 'ok', 'ok'); updateControls(); };
-  ws.onclose = () => { S.wsOk = false; pill('pill-srv', 'lost', 'lost'); scheduleWs(); updateControls(); };
+  ws.onopen = () => { S.wsOk = true; if (S.outage) { S.outage = false; log('Ground station link restored.', 'good'); showCue('#i-link', 'Ground station link restored.', 'good', 4000); } updateControls(); };
+  ws.onclose = () => { S.wsOk = false; scheduleWs(); updateControls(); };
   ws.onerror = () => { try { ws.close(); } catch (_) {} };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
-    if (m.type === 'hello') { S.fake = !!m.fake; $('brand-sub').textContent = m.fake ? 'Ground station · FAKE fish' : 'Ground station'; if (m.defaults) { if (!$('ip-fin').value) $('ip-fin').value = m.defaults.fin_ip; if (!$('ip-cam').value) $('ip-cam').value = m.defaults.cam_ip; } (m.events || []).forEach(e => log(e.msg, e.level, e.t_mission)); }
+    if (m.type === 'hello') { S.fake = !!m.fake; $('pill-sim').hidden = !m.fake; if (m.defaults) { if (!$('ip-fin').value) $('ip-fin').value = m.defaults.fin_ip; if (!$('ip-cam').value) $('ip-cam').value = m.defaults.cam_ip; } (m.events || []).forEach(e => log(e.msg, e.level, e.t_mission)); }
     else if (m.type === 'event') { log(m.msg, m.level, m.t_mission); if (/^Phase: /.test(m.msg)) S.summary.reason = m.msg.replace(/^Phase: [^—]*(— )?/, ''); }
     else if (m.type === 'telemetry') applyTelemetry(m); };
 }
 function scheduleWs(){ if (wsRetry) return; wsRetry = setTimeout(() => { wsRetry = null; connectWs(); }, 1000); }
 
 function applyTelemetry(m){
-  const prev = S.phase; S.tel = m; S.t = m.t;
+  const prev = S.phase; S.tel = m; S.t = m.t; S.lastTel = performance.now();
   const wasConnected = S.connected; S.connected = !!m.connected;
   S.s = m.progress || 0; S.rtt = m.link.fin_rtt_ms; S.sent = m.link.sent; S.acked = m.link.acked; S.linkOk = !!m.link.alive; S.imuAge = m.link.imu_age_ms; S.imuRate = m.link.imu_rate; S.cam = m.cam;
   S.att = m.imu; S.est.set(m.est.x, m.est.y, m.est.z); S.pos.copy(S.est); S.drift = m.est.drift || 0;
@@ -882,7 +938,7 @@ function applyTelemetry(m){
   setOverrideUI(m.override.on); S.override = m.override;
   if (m.mission.set) { const t = m.mission.target; S.speed = m.mission.speed; S.mission = m.mission;
     if (!S.initLoaded || TARGET.x !== t[0] || TARGET.y !== t[1] || TARGET.z !== t[2]) { TARGET = new V(t[0], t[1], t[2]); recomputeGeometry(); placeMissionObjects(); S.initLoaded = true; $('init-kv').hidden = false;
-      $('init-dist').textContent = PATH_LEN.toFixed(2) + ' m'; $('init-eta').textContent = (PATH_LEN/S.speed).toFixed(1) + ' s'; $('init-ho').textContent = Math.round(S.threshold*100) + ' % · ' + (PATH_LEN*S.threshold).toFixed(2) + ' m along path'; $('init-src').textContent = m.mission.source || 'typed in';
+      $('init-dist').textContent = dm(PATH_LEN,2); $('init-eta').textContent = (PATH_LEN/S.speed).toFixed(1) + ' s'; $('init-ho').textContent = Math.round(S.threshold*100) + ' % · ' + dm(PATH_LEN*S.threshold,2) + ' along path'; $('init-src').textContent = m.mission.source || 'typed in'; if (!/^Mission applied/.test($('init-msg').textContent)) { $('init-msg').textContent = 'Mission applied (' + (m.mission.source || 'typed in') + ').'; $('init-msg').className = 'okmsg'; }
       if (document.activeElement !== $('m-x') && document.activeElement !== $('m-y') && document.activeElement !== $('m-z') && document.activeElement !== $('m-speed')) { $('m-speed').value = Math.round(S.speed * 100); $('m-x').value = Math.round(t[0] * 100); $('m-y').value = Math.round(t[1] * 100); $('m-z').value = Math.round(t[2] * 100); } } }
   if (m.t_mission != null) S.launchT = S.t - m.t_mission; else if (!FLYING.has(m.phase) && m.phase !== 'arrived' && m.phase !== 'aborted') S.launchT = null;
   if (m.phase !== prev) onPhase(m.phase, prev);
@@ -906,41 +962,50 @@ function updateDOM(){
   const yaw = snap ? snap.yaw : S.yaw, pitch = snap ? snap.pitch : S.pitch, yawCmd = snap ? snap.yawCmd : S.yawCmd, pitchCmd = snap ? snap.pitchCmd : S.pitchCmd;
   const cv = snap ? snap.cv : {state:S.cv.state, ex:S.cv.ex, ey:S.cv.ey, conf:S.conf};
   const prog = snap ? snap.s : S.s;
-  if (!S.connected) { pill('pill-fin', 'lost', 'no link'); pill('pill-cam', 'lost', 'no stream'); pill('pill-imu', 'lost', 'no data'); }
+  const age = S.lastTel ? (performance.now() - S.lastTel)/1000 : null;
+  const stale = !S.wsOk || age == null || age > 1.0;
+  if (S.connected && stale) {
+    const t = age == null ? '—' : fmt(age,0) + ' s'; const lost = !S.wsOk || age > 3; const cls = lost ? 'lost' : 'slow';
+    pill('pill-fin', cls, 'stale ' + t); pill('pill-cam', cls, 'stale ' + t); pill('pill-imu', cls, 'stale ' + t);
+    if (lost && !S.outage) { S.outage = true; log('Ground station link lost: no telemetry for ' + t + '.', 'crit'); showCue('#i-plug-off', 'Ground station link lost. The fish drops its fins to neutral after 1 s on its own.', 'crit', 0); }
+  }
+  else if (!S.connected) { pill('pill-fin', 'lost', 'no link'); pill('pill-cam', 'lost', 'no stream'); pill('pill-imu', 'lost', 'no data'); }
   else {
-    pill('pill-fin', S.linkOk ? (S.rtt < 60 ? 'ok' : 'slow') : 'lost', S.linkOk ? ((S.rtt < 60 ? 'ok ' : 'slow ') + fmt(S.rtt,0) + ' ms') : 'lost');
-    pill('pill-cam', S.cam.connected && S.cam.fps > 2 ? 'ok' : (S.cam.connected ? 'slow' : 'lost'), S.cam.connected ? (S.cam.fps > 2 ? 'ok ' : 'slow ') + fmt(S.cam.fps,0) + ' fps' : 'no stream');
-    pill('pill-imu', S.imuAge == null ? 'lost' : (S.imuAge < 200 ? 'ok' : 'slow'), S.imuAge == null ? 'no data' : (S.imuAge < 200 ? 'ok ' : 'slow ') + fmt(S.imuAge,0) + ' ms');
+    pill('pill-fin', S.linkOk ? (S.rtt < 60 ? 'ok' : 'slow') : 'lost', S.linkOk ? ((S.rtt < 60 ? '' : 'slow ') + fmt(S.rtt,0) + ' ms') : 'lost');
+    pill('pill-cam', S.cam.connected && S.cam.fps > 2 ? 'ok' : (S.cam.connected ? 'slow' : 'lost'), S.cam.connected ? (S.cam.fps > 2 ? '' : 'slow ') + fmt(S.cam.fps,0) + ' fps' : 'no stream');
+    pill('pill-imu', S.imuAge == null ? 'lost' : (S.imuAge < 200 ? 'ok' : 'slow'), S.imuAge == null ? 'no data' : (S.imuAge < 200 ? '' : 'slow ') + fmt(S.imuAge,0) + ' ms');
   }
   $('phase-pct').textContent = FLYING.has(S.phase) ? Math.round(prog*100) + ' %' : '';
   const tm = missionT(); $('clock').textContent = tm == null ? 'T−00:00.0' : clockStr(tm);
   const bar = $('prog-bar'); bar.style.width = clamp(prog*100, 0, 100) + '%'; bar.classList.toggle('cv', S.phase==='cv_homing'||S.phase==='handover'||S.phase==='arrived');
-  $('prog-text').textContent = 'Progress ' + Math.round(prog*100) + ' % of the path · hand-over at ' + Math.round(S.threshold*100) + ' %';
+  $('prog-text').textContent = Math.round(prog*100) + ' % of the path under IMU · hand-over at ' + Math.round(S.threshold*100) + ' %'; bar.parentElement.setAttribute('aria-valuenow', Math.round(clamp(prog*100,0,100)));
   const c = S.hoOk || [false,false,false,false];
-  const hoSet = (id, ok, val) => { const li = $(id); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); li.querySelector('.mark').textContent = ok?'✔':'✘'; $(id+'-v').textContent = val; };
+  const hoSet = (id, ok, val) => { const li = $(id); li.classList.toggle('ok', !!ok); li.classList.toggle('no', !ok); setMark(li.querySelector('.mark'), ok?'#i-check':'#i-cross'); $(id+'-v').textContent = val; };
   const hn = S.tel ? S.tel.handover : {frames_needed:5, conf_needed:0.6};
   hoSet('ho-prog', c[0], Math.round(prog*100) + ' % / ' + Math.round(S.threshold*100) + ' %');
   hoSet('ho-frames', c[1], Math.min(S.cvFrames,99) + ' / ' + hn.frames_needed); hoSet('ho-conf', c[2], fmt(cv.conf,2)); hoSet('ho-link', c[3], S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : 'no link');
   $('ho-frames').children[1].textContent = (S.vmode === 'swarm' ? 'Swarm' : 'Beacon') + ' seen ' + hn.frames_needed + ' frames in a row'; $('ho-conf').children[1].textContent = 'Confidence at least ' + (+hn.conf_needed).toFixed(2);
   $('imu-att').textContent = S.connected ? sgn(att.roll,1)+'° / '+sgn(att.pitch,1)+'° / '+sgn(att.yaw,1)+'°' : '—';
-  $('imu-pos').textContent = S.connected ? fmt(est.x,2)+', '+fmt(est.y,2)+', '+fmt(est.z,2)+' m' : '—';
+  $('imu-pos').textContent = S.connected ? (game() ? fmt(est.x*100,0)+', '+fmt(est.y*100,0)+', '+fmt(est.z*100,0) : fmt(est.x,2)+', '+fmt(est.y,2)+', '+fmt(est.z,2))+' m' : '—';
   $('imu-dist').textContent = S.connected && S.initLoaded ? unit(pos.distanceTo(TARGET)) : '—';
-  $('imu-drift').textContent = S.connected ? (S.drift>0.4 ? '⚠ ' : '') + fmt(S.drift,2) + ' m' : '—';
+  $('imu-drift').textContent = S.connected ? (S.drift>0.4 ? '⚠ ' : '') + dm(S.drift,2) : '—';
   const sw = S.vmode === 'swarm'; const what = sw ? 'swarm' : 'beacon';
   const lockText = {none:'No stream', searching:'Searching for ' + what, seen:(sw ? 'Swarm S' + S.swarmId + ' seen, ' + S.swarmN + ' quads' : 'Beacon seen'), locked:'Locked on ' + what, hold:'Holding, swarm briefly lost'}[cv.state] || cv.state;
-  const lockIc = {none:'○', searching:'◌', seen:'◐', locked:'◉', hold:'◒'}[cv.state] || '○';
-  $('lock-t').textContent = lockText; $('lock').querySelector('.ic').textContent = lockIc;
+  const lockSym = {none:'#i-camera', searching:'#i-search', seen:(sw ? '#i-swarm' : '#i-beacon'), locked:'#i-target', hold:'#i-hold'}[cv.state] || '#i-camera';
+  $('lock-t').textContent = lockText; $('lock-ic').setAttribute('href', lockSym);
+  $('conf-thr').style.left = (hn.conf_needed*100) + '%'; $('conf-thr-l').textContent = 'threshold ' + (+hn.conf_needed).toFixed(2);
   $('conf-fill').style.width = (cv.conf*100)+'%'; $('conf-out').textContent = fmt(cv.conf,2);
   const seen = cv.state==='seen'||cv.state==='locked'||cv.state==='hold';
   updateSwarmUI();
+  $('ir-cap').hidden = !(S.connected && seen); $('ir-cap-follow').textContent = sw ? 'Following S' + S.swarmId + ' · ' + S.swarmN + ' quad' + (S.swarmN===1?'':'s') : 'Beacon ' + fmt(cv.conf,2); $('ir-cap-fps').textContent = S.cvW + '×' + S.cvH + ' · ' + fmt(S.cam.fps,0) + ' fps';
   $('cv-err').textContent = seen ? sgn(cv.ex,0)+', '+sgn(cv.ey,0)+' px' : '—';
   $('cv-norm').textContent = seen ? sgn(cv.ex/(S.cvW/2),3)+', '+sgn(cv.ey/(S.cvH/2),3) : '—';
   $('cv-fin').textContent = seen && (S.phase==='cv_homing'||S.phase==='handover') ? 'yaw '+sgn(yawCmd,1)+'°, pitch '+sgn(pitchCmd,1)+'°' : '—';
   $('cv-fps').textContent = S.connected ? fmt(S.cam.fps,0)+' fps · '+fmt(S.cam.cv_ms,0)+' ms' : '—';
   $('cv-src').textContent = S.connected ? (S.tel && S.tel.cam.yolo ? 'YOLO nano loaded; IR blob is the fallback.' : 'IR blob detector (no YOLO weights loaded).') + (S.fake ? (S.camSource === 'browser' ? ' Frames: simulated fish camera from this page.' : ' Frames: dot picture from the ground station.') : '') : '';
-  $('camsim-box').hidden = !S.fake;
+  $('camsim-box').hidden = !S.fake; $('tn-quads-box').hidden = !S.fake;
   $('cv-alt').textContent = !S.connected ? 'No camera stream.' : seen ? (sw ? 'Following swarm S' + S.swarmId + ' with ' + S.swarmN + ' quads, ' + S.swarms.length + ' swarm' + (S.swarms.length===1?'':'s') + ' visible, ' + S.nSources + ' sources. Centroid ' : 'Beacon ') + 'at ' + Math.round(S.cvW/2+cv.ex) + ', ' + Math.round(S.cvH/2+cv.ey) + ' of ' + S.cvW + '×' + S.cvH + ': ' + Math.abs(Math.round(cv.ex)) + ' px ' + (cv.ex>=0?'right':'left') + ', ' + Math.abs(Math.round(cv.ey)) + ' px ' + (cv.ey>=0?'below':'above') + ' centre. Confidence ' + fmt(cv.conf,2) + '.' : 'Dark IR frame, no beacon detected.';
-  const g = (i, act, cmdv) => { const a = $('g'+i+'a'), cm = $('g'+i+'c'); const pa = act/60*100; a.style.left = (act>=0?50:50+pa)+'%'; a.style.width = Math.abs(pa)+'%'; cm.style.left = (50+cmdv/60*100)+'%'; $('f'+i).textContent = sgn(act,1)+'°'; };
+  const g = (i, act, cmdv) => { const a = $('g'+i+'a'), cm = $('g'+i+'c'); const pa = act/60*100; a.style.left = (act>=0?50:50+pa)+'%'; a.style.width = Math.abs(pa)+'%'; cm.style.left = (50+cmdv/60*100)+'%'; $('f'+i).textContent = sgn(act,1)+'°'; $('g'+i).setAttribute('aria-valuenow', act.toFixed(1)); };
   g(0,pitch,pitchCmd); g(2,pitch,pitchCmd); g(1,yaw,yawCmd); g(3,yaw,yawCmd);
   $('fin-yaw').textContent = sgn(yawCmd,1)+'° → '+sgn(yaw,1)+'°'; $('fin-pitch').textContent = sgn(pitchCmd,1)+'° → '+sgn(pitch,1)+'°';
   $('fin-rtt').textContent = S.connected && S.rtt != null ? fmt(S.rtt,0)+' ms' : '—'; $('fin-pk').textContent = S.connected ? S.sent+' / '+S.acked : '—'; $('fin-batt').textContent = S.batt != null ? fmt(S.batt,2)+' V' : '—';
@@ -993,25 +1058,28 @@ function updateSwarmUI(){
 /* ================= IR frame (annotated MJPEG from the ground station) ================= */
 function updateIR(){
   const img = $('ir'); const ns = $('ir-nostream');
+  $('ir-wrap').classList.toggle('live', S.connected && !S.paused);
   if (S.connected && !S.paused) { if (!img.getAttribute('src')) img.src = '/video_feed?' + Date.now(); ns.hidden = true; }
-  else { img.removeAttribute('src'); ns.hidden = false; ns.textContent = S.paused ? 'Paused' : 'No stream'; }
+  else { img.removeAttribute('src'); ns.hidden = false; ns.textContent = S.paused ? 'Paused' : 'No camera stream. Connect the fish to see the camera.'; }
 }
 
 /* ================= charts ================= */
 const NS = 'http://www.w3.org/2000/svg';
 function el(n, attrs){ const e = document.createElementNS(NS, n); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function nice(v){ if (v<=0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v/p; const n = m<=1?1:m<=2?2:m<=5?5:10; return n*p; }
 function makeChart(root, opt){
   const svg = root.querySelector('svg'), tip = root.querySelector('.tip'), tableWrap = root.querySelector('.chart-table'), tbtn = root.querySelector('button[aria-expanded]');
   const W=320,H=100,ML=34,MR=10,MT=8,MB=16; svg.setAttribute('viewBox','0 0 '+W+' '+H);
   const grid = el('g',{class:'grid'}), axis = el('g',{class:'axis'}); const area = el('path',{class:'area',fill:opt.color}); const line = el('path',{class:'series',stroke:opt.color});
   const endDot = el('circle',{class:'dot',r:4,fill:opt.color}); const hair = el('line',{class:'hair',y1:MT,y2:H-MB,visibility:'hidden'}); const hDot = el('circle',{class:'dot',r:4,fill:opt.color,visibility:'hidden'});
   const hit = el('rect',{x:ML,y:MT,width:W-ML-MR,height:H-MT-MB,fill:'transparent'});
-  svg.append(grid, axis, area, line, endDot, hair, hDot, hit);
+  const refLine = el('line',{class:'ref',x1:ML,x2:W-MR,visibility:'hidden'}), refText = el('text',{class:'ref-l',x:W-MR-2,'text-anchor':'end'});
+  svg.append(grid, axis, refLine, refText, area, line, endDot, hair, hDot, hit);
   let data = [], hover = null, focused = false, t0=0, t1=30, ymax=1;
   const xs = t => ML + (t-t0)/(t1-t0)*(W-ML-MR), ys = v => H-MB - (v/ymax)*(H-MT-MB);
-  function nice(v){ if (v<=0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v/p; const n = m<=1?1:m<=2?2:m<=5?5:10; return n*p; }
   function render(){
     grid.replaceChildren(); axis.replaceChildren();
+    const rf = opt.ref ? opt.ref() : null; if (rf && rf.y > 0 && rf.y <= ymax) { const y = ys(rf.y); refLine.setAttribute('y1',y); refLine.setAttribute('y2',y); refLine.setAttribute('visibility','visible'); refText.setAttribute('y', y-3); refText.textContent = rf.label; } else { refLine.setAttribute('visibility','hidden'); refText.textContent = ''; }
     [0,0.5,1].forEach(f => { const y = ys(f*ymax); grid.appendChild(el('line',{x1:ML,x2:W-MR,y1:y,y2:y})); const t = el('text',{x:ML-4,y:y+3,'text-anchor':'end'}); t.textContent = opt.fmt(f*ymax); axis.appendChild(t); });
     const tl = el('text',{x:ML,y:H-4}); tl.textContent = '−30 s'; const tr = el('text',{x:W-MR,y:H-4,'text-anchor':'end'}); tr.textContent = 'now'; axis.append(tl,tr);
     if (data.length<2) { area.setAttribute('d',''); line.setAttribute('d',''); endDot.setAttribute('visibility','hidden'); return; }
@@ -1031,12 +1099,12 @@ function makeChart(root, opt){
   svg.addEventListener('keydown', e => { if (!data.length) return; if (e.key==='ArrowLeft') { hover = clamp((hover??data.length-1)-1,0,data.length-1); showHover(); e.preventDefault(); } else if (e.key==='ArrowRight') { hover = clamp((hover??data.length-1)+1,0,data.length-1); showHover(); e.preventDefault(); } else if (e.key==='Escape') { hideHover(); } });
   tbtn.addEventListener('click', () => { const open = tbtn.getAttribute('aria-expanded')!=='true'; tbtn.setAttribute('aria-expanded', String(open)); tbtn.textContent = open ? 'Hide table' : 'Show table'; tableWrap.hidden = !open; if (open) renderTable(); });
   function renderTable(){ tableWrap.replaceChildren(); const tb = document.createElement('table'); const cap = document.createElement('caption'); cap.className='sr-only'; cap.textContent = opt.label + ', last 10 samples'; tb.appendChild(cap); const thead = document.createElement('thead'); const tr = document.createElement('tr'); ['t (s)', opt.label + ' (' + opt.unit + ')'].forEach(h => { const th = document.createElement('th'); th.scope='col'; th.textContent = h; tr.appendChild(th); }); thead.appendChild(tr); tb.appendChild(thead); const tbody = document.createElement('tbody'); const rows = data.filter((_,i)=> i % 10 === 0 || i===data.length-1).slice(-10); rows.forEach(p => { const r = document.createElement('tr'); [p.t.toFixed(1), opt.fmt(p.y)].forEach(v => { const td = document.createElement('td'); td.textContent = v; r.appendChild(td); }); tbody.appendChild(r); }); if (!rows.length) { const r = document.createElement('tr'); const td = document.createElement('td'); td.colSpan=2; td.textContent='No samples yet.'; r.appendChild(td); tbody.appendChild(r); } tb.appendChild(tbody); tableWrap.appendChild(tb); }
-  return { update(hist, tEnd){ const all = hist.map(h => ({t:h.t, y:opt.get(h)})).filter(p => p.y!=null); const end = tEnd!=null ? tEnd : (all.length ? all[all.length-1].t : 0); t1 = Math.max(30, end); t0 = t1-30; data = all.filter(p => p.t>=t0 && p.t<=t1); ymax = nice(Math.max(opt.min||0, ...data.map(p=>p.y), 0)); const last = data[data.length-1]; root.querySelector('.now').textContent = last ? opt.fmt(last.y) + ' ' + opt.unit : '—'; svg.setAttribute('aria-label', opt.label + ' over the last 30 seconds' + (last ? ', latest ' + opt.fmt(last.y) + ' ' + opt.unit : ', no data yet')); render(); if (!tableWrap.hidden) renderTable(); } };
+  return { update(hist, tEnd){ const all = hist.map(h => ({t:h.t, y:opt.get(h)})).filter(p => p.y!=null); const end = tEnd!=null ? tEnd : (all.length ? all[all.length-1].t : 0); t1 = Math.max(30, end); t0 = t1-30; data = all.filter(p => p.t>=t0 && p.t<=t1); const fx = opt.fixed ? opt.fixed() : null; ymax = fx ? fx : nice(Math.max(opt.min||0, ...data.map(p=>p.y), 0)); const last = data[data.length-1]; root.querySelector('.now').textContent = last ? opt.fmt(last.y) + ' ' + opt.unit : '—'; svg.setAttribute('aria-label', opt.label + ' over the last 30 seconds' + (last ? ', latest ' + opt.fmt(last.y) + ' ' + opt.unit : ', no data yet')); render(); if (!tableWrap.hidden) renderTable(); } };
 }
 const chartColor = () => getComputedStyle(document.documentElement).getPropertyValue('--imu').trim();
 const charts = [
-  makeChart($('chart-dist'), { label:'Distance to target', unit:'m', color:'var(--imu)', get:h=>h.dist, fmt:v=>v.toFixed(1), min:1 }),
-  makeChart($('chart-err'),  { label:'Vision error', unit:'px', color:'var(--cv)', get:h=> (h.cv.state==='seen'||h.cv.state==='locked') ? h.err : null, fmt:v=>v.toFixed(0), min:10 }),
+  makeChart($('chart-dist'), { label:'Distance to target', unit:'m', color:'var(--imu)', get:h=>h.dist*(game()?100:1), fmt:v=>game()?v.toFixed(0):v.toFixed(1), min:1, fixed:() => S.mission.set ? nice(PATH_LEN*(game()?100:1)) : null, ref:() => S.mission.set ? {y:(1-S.threshold)*PATH_LEN*(game()?100:1), label:'hand-over ' + dm((1-S.threshold)*PATH_LEN,1)} : null }),
+  makeChart($('chart-err'),  { label:'Vision error', unit:'px', color:'var(--cv)', get:h=> (h.cv.state==='seen'||h.cv.state==='locked') ? h.err : null, fmt:v=>v.toFixed(0), min:10, fixed:() => S.cvW/2, ref:() => { const db = S.tel && S.tel.cfg ? S.tel.cfg.deadband_px : 6; return {y:db, label:'deadband ' + db + ' px'}; } }),
 ];
 
 /* ================= 3D view ================= */
@@ -1106,21 +1174,21 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 // orbit camera
 const cam = { mode:'follow', theta:-2.3, phi:1.15, r:4.5, cur:{theta:-2.3, phi:1.15, r:4.5}, target:new V(), curTarget:new V(0,1,0) };
 const PRESETS = { follow:{theta:-2.3, phi:1.15, r:4.5}, side:{theta:Math.PI/2, phi:1.3, r:12}, top:{theta:-0.2, phi:0.12, r:13} };
-function setPreset(m){ cam.mode = m; Object.assign(cam, PRESETS[m]); ['follow','side','top'].forEach(k => $('view-'+k).setAttribute('aria-pressed', String(k===m))); $('view-badge').textContent = m[0].toUpperCase()+m.slice(1); }
+function setPreset(m){ cam.mode = m; Object.assign(cam, PRESETS[m]); ['follow','side','top'].forEach(k => $('view-'+k).setAttribute('aria-pressed', String(k===m))); }
 ['follow','side','top'].forEach(k => $('view-'+k).addEventListener('click', () => setPreset(k)));
 let drag = null;
 const inSummary = e => !!(e.target && e.target.closest && e.target.closest('#dlg-summary'));
-wrap.addEventListener('pointerdown', e => { if (inSummary(e)) return; drag = {x:e.clientX, y:e.clientY}; wrap.setPointerCapture(e.pointerId); });
+wrap.addEventListener('pointerdown', e => { if (inSummary(e)) return; drag = {x:e.clientX, y:e.clientY}; wrap.classList.add('dragging'); wrap.setPointerCapture(e.pointerId); });
 wrap.addEventListener('pointermove', e => { if (!drag) return; cam.theta -= (e.clientX-drag.x)*0.008; cam.phi = clamp(cam.phi - (e.clientY-drag.y)*0.006, 0.08, 1.5); drag = {x:e.clientX, y:e.clientY}; });
-wrap.addEventListener('pointerup', () => drag = null); wrap.addEventListener('pointercancel', () => drag = null);
-wrap.addEventListener('wheel', e => { if (inSummary(e)) return; e.preventDefault(); cam.r = clamp(cam.r * (1 + Math.sign(e.deltaY)*0.1), 1.5, 30); }, {passive:false});
+wrap.addEventListener('pointerup', () => { drag = null; wrap.classList.remove('dragging'); }); wrap.addEventListener('pointercancel', () => { drag = null; wrap.classList.remove('dragging'); });
+wrap.addEventListener('wheel', e => { if (inSummary(e)) return; if (!(e.ctrlKey || document.activeElement === wrap)) return; e.preventDefault(); cam.r = clamp(cam.r * (1 + Math.sign(e.deltaY)*0.1), 1.5, 30); }, {passive:false});
 wrap.addEventListener('keydown', e => { if (inSummary(e)) return; const k = e.key; let used = true;
   if (k==='ArrowLeft') cam.theta += 0.12; else if (k==='ArrowRight') cam.theta -= 0.12; else if (k==='ArrowUp') cam.phi = clamp(cam.phi-0.08,0.08,1.5); else if (k==='ArrowDown') cam.phi = clamp(cam.phi+0.08,0.08,1.5);
   else if (k==='+' || k==='=') cam.r = clamp(cam.r*0.9,1.5,30); else if (k==='-' || k==='_') cam.r = clamp(cam.r*1.1,1.5,30); else if (k==='Home') setPreset(cam.mode); else used = false;
   if (used) e.preventDefault(); });
 function resize(){ const w = wrap.clientWidth, h = wrap.clientHeight; if (!w||!h) return; renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(wrap); resize();
-$('btn-pause').addEventListener('click', () => { S.paused = !S.paused; updateIR(); $('btn-pause').setAttribute('aria-pressed', String(S.paused)); $('btn-pause').textContent = S.paused ? 'Resume view updates' : 'Pause view updates'; log(S.paused ? 'View updates paused (telemetry text continues).' : 'View updates resumed.'); if (!S.paused) render3D(); });
+$('btn-pause').addEventListener('click', () => { S.paused = !S.paused; updateIR(); $('btn-pause').setAttribute('aria-pressed', String(S.paused)); $('pause-t').textContent = S.paused ? 'Resume' : 'Pause'; $('pause-ic').setAttribute('href', S.paused ? '#i-play' : '#i-pause'); log(S.paused ? 'View updates paused (telemetry text continues).' : 'View updates resumed.'); if (!S.paused) render3D(); });
 let lastFrame = 0;
 function render3D(){
   const snap = current(); const pos = snap ? snap.pos : S.pos, est = snap ? snap.est : S.est, att = snap ? snap.att : S.att; const yaw = snap ? snap.yaw : S.yaw, pitch = snap ? snap.pitch : S.pitch;
@@ -1219,6 +1287,7 @@ function streamPOV(ts){
   pov2d.toBlob(b => { povBusy = false; if (b && camWs && camWs.readyState === 1) b.arrayBuffer().then(buf => { if (camWs && camWs.readyState === 1) camWs.send(buf); }); }, 'image/jpeg', 0.75);
 }
 $('camsim').addEventListener('change', () => { if (camsimMode() === 'off') camWsClose(); });
+document.querySelectorAll('#camsim-seg .btn').forEach(b => b.addEventListener('click', () => { $('camsim').value = b.dataset.value; $('camsim').dispatchEvent(new Event('change')); document.querySelectorAll('#camsim-seg .btn').forEach(x => x.setAttribute('aria-pressed', String(x === b))); }));
 
 /* ================= replay ================= */
 function enableReplay(){ if (S.hist.length < 2) return; $('replay').classList.add('on'); $('scrub').max = S.hist.length-1; $('scrub').value = S.hist.length-1; $('scrub-t').textContent = 't = ' + S.hist[S.hist.length-1].t.toFixed(1) + ' s (live end)'; }
@@ -1228,9 +1297,10 @@ $('btn-live').addEventListener('click', () => { S.scrub = null; $('scrub').value
 /* ================= keyboard shortcuts ================= */
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName||'').toLowerCase(); const typing = tag==='input' || tag==='textarea' || tag==='select';
-  const dlgOpen = $('dlg-settings').open || $('dlg-keys').open;
-  if (e.key==='?' && !typing) { e.preventDefault(); if (!dlgOpen) $('dlg-keys').showModal(); return; }
-  if (!settings.keys || typing || dlgOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape' && anyPopOpen()) { e.preventDefault(); Object.keys(POPS).forEach(p => { if (!$(p).hidden) togglePop(p, false); }); return; }
+  if (e.key==='?' && !typing) { e.preventDefault(); togglePop('dlg-keys'); return; }
+  if (e.repeat) return;
+  if (!settings.keys || typing || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k==='x') { abort(); } else if (k==='a') { if (!$('btn-arm').disabled) $('btn-arm').click(); } else if (k==='l') { if (!$('btn-launch').disabled) $('btn-launch').click(); }
   else if (k==='n') { if (!$('btn-neutral').disabled) $('btn-neutral').click(); } else if (k==='p') { $('btn-pause').click(); } else if (k==='s') { stopMission(); } else if (k==='[' || k===']') { if (S.vmode==='swarm' && S.connected) cmd({cmd:'swarm', action: k==='[' ? 'prev' : 'next'}); }
@@ -1241,8 +1311,10 @@ document.addEventListener('keydown', e => {
 /* ================= main loop ================= */
 applySettings(); updateControls(); setThresholdUI(80); placeMissionObjects(); updateIR();
 $('btn-pause').addEventListener('click', updateIR);
-log('GCS page loaded. Connecting to the ground station…');
+log('Page loaded. Connecting to the ground station…');
 connectWs();
 setInterval(() => { if (!S.tel) S.t = performance.now()/1000; updateDOM(); updateReadout(); }, 100);
 })();
 </script>
+</body>
+</html>

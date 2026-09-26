@@ -420,3 +420,21 @@ training data), **visible light** (sky and ground), or **off**. Operator overlay
 path, hand-over ring, trails, estimate marker, halo) live on a separate render layer so they never
 appear in the fish's view, and the fish model is hidden for that pass. The Vision panel's source
 line says whether frames come from the page or from the station. Real mode is unaffected.
+
+## 18. HIG redesign, 26 Sep 2026 (approved from the mock, implemented)
+
+Source: `docs/HIG_AUDIT.md` (38 verified findings). Mock approved by the owner as shown. Changes on the live page:
+
+- **Naming.** The fish is **Maelstrom**; the page title is "Maelstrom Ground Station", the brand block says Maelstrom / Ground station, sections are Mission, Guidance, Flight view, Trends, Vision, Fins, Log. Spec IDs left the UI. Downloads are `maelstrom-flight.json/csv`. Simulation shows as a "Simulated" pill, never in the brand.
+- **Document.** Real doctype, `lang`, charset, viewport (`viewport-fit=cover`) and `color-scheme` meta.
+- **Toolbar.** One 64 px row, three groups: brand + bordered link cluster (tabular values), phase chip + clock centred, Keys / Settings icon buttons and Abort trailing. Never wraps; at phone width the pill words drop and the dots and values stay.
+- **Cue strip** only for time-critical or actionable messages: launch countdown, accelerometer wait, automatic Aborted (fault), operator abort, ground-station link lost / restored, a safety command the station refused. Routine phase changes go to the chip, the stepper, the log and the live region.
+- **Stage-ordered deck.** `body[data-stage]` (disconnected, ready, armed, flying, ended) swaps the left column: Mission leads in Ready, Guidance leads from Armed on. Flight view and Trends share the centre column.
+- **One primary action at a time**: Connect → Apply mission → Arm → Launch → Stop / Back to Ready, removed while disabled.
+- **Mission fields** with the unit inside the field (cm/s, cm) and visible x / y / z labels; IP fields disabled while connected; init-file import behind a disclosure; step badges 1-2-3 turn into ticks.
+- **Controls.** Joined segmented controls (camera, Beacon/Swarm, simulated camera, every Settings choice); disclosures with a rotating chevron; compact buttons are 44 px; every tuning and PID slider has a number field and printed range ends; the hand-over threshold has a % field; the override sliders show −30 / 0 / +30.
+- **Feedback.** Settings and Keys are non-modal popovers (Esc, outside click, close button); Abort and the X shortcut work while open. Held keys no longer auto-repeat through the two-step Arm. Link pills turn "stale N s" when telemetry stops and "lost" after 3 s with a critical log line and cue; recovery is logged. A refused safety command shows a critical cue naming the command and reason.
+- **Gauges, meters, charts.** Scale row over the fin gauges, `role="meter"` with live values; confidence meter with the threshold mark; charts with fixed axes (distance 0 to the path length with a hand-over reference, vision error 0 to half the frame width with the deadband reference).
+- **Symbols.** One inline SVG sprite replaces the Unicode glyphs: phases, checks, lock states, log levels, camera/IMU/link, settings, keyboard, chevrons.
+- **Colour and type.** Light-mode vision orange darkened to #D9531F; status text tokens used for dots and borders in both themes; `prefers-contrast: more` honoured with a tri-state setting; type scale tokens (h1 1.375 rem … footnote .8125 rem); buttons regular weight, primary bold.
+- **Not changed.** WCAG AA, 44 px targets, single-press Abort, keyboard shortcuts, the summary panel over the flight view (now a compact single row).

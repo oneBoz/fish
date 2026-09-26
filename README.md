@@ -1,6 +1,6 @@
-# Fish GCS
+# Maelstrom GCS
 
-Ground control station for the fin-steered fish: the laptop receives the ICM20948 stream and
+Ground control station for Maelstrom, the fin-steered fish: the laptop receives the ICM20948 stream and
 the IR camera over the phone hotspot, steers the fins over UDP, and shows everything in a browser.
 
 ```
@@ -122,7 +122,7 @@ hundred or so and add them to the same folders before retraining (the synthetic 
 | `tests/flight_sim.py` | bench flight through the real command path, prints true vs estimated position |
 | `tools/synth/` | Three.js synthetic drone image generator + save server (YOLO dataset) |
 | `tools/train_quads.py` | fine-tune YOLO nano on that dataset, export ONNX for the Pi |
-| `gcs/static/index.html` | the GCS page (Three.js 3D view, vision, fins, log; WCAG 2.2 AA choices in `docs/FRONTEND_DESIGN.md`) |
+| `gcs/static/index.html` | the ground station page (Three.js flight view, vision, fins, log; WCAG 2.2 AA and the Apple HIG redesign in `docs/FRONTEND_DESIGN.md`, audit in `docs/HIG_AUDIT.md`) |
 | `firmware/fish_node/fish_node.ino` | `pid_fins.ino` + ICM20948 streaming + PING/MISSION/LAUNCH. Untested on hardware. |
 | `docs/FRONTEND_DESIGN.md` | the agreed design, data contract and decisions |
 
